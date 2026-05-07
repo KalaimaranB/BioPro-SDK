@@ -58,4 +58,4 @@ jobs:
 
       - name: Publish to PyPI
         if: env.TAG_EXISTS == 'false'
-        uses: pypa/github-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@release/v1
