@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from ..core.preferences import PreferenceManagerProtocol
+from .preferences import PreferenceManagerProtocol
 
 logger = logging.getLogger(__name__)
 

@@ -10,28 +10,7 @@ from typing import Any
 
 from PyQt6.QtWidgets import QWidget
 
-try:
-    from biopro.core.history_manager import HistoryManager
-except ImportError:
-    class HistoryManager:
-        def get_module_history(self, *args, **kwargs):
-            class MockHistory:
-                def push(self, *args): pass
-                def undo(self): return None
-                def redo(self): return None
-                @property
-                def undo_stack(self): return [1, 2] # Mock to allow basic checks
-                @property
-                def redo_stack(self): return []
-            return MockHistory()
 
-try:
-    from biopro.core.resource_inspector import ResourceInspector
-except ImportError:
-    class ResourceInspector:
-        @staticmethod
-        def get_heavy_resources(*args, **kwargs):
-            return []
 
 try:
     from biopro.ui.theme import Colors, theme_manager
@@ -97,15 +76,41 @@ class PluginBase(QWidget):
         self.plugin_id = plugin_id
 
         # Initialize context-aware logger
-        from biopro.sdk.utils.logging import get_logger
+        from .logging import get_logger
 
         self.logger = get_logger(f"plugin.{plugin_id}", plugin_id)
 
-        self.history = HistoryManager()
+        self._history = None
         self._current_state = None
 
         # Connect to global theme engine
         theme_manager.theme_changed.connect(self._apply_theme_styles)
+
+    @property
+    def history(self):
+        """Lazy-loaded HistoryManager to avoid circular dependencies."""
+        if not hasattr(self, "_history") or self._history is None:
+            try:
+                from biopro.core.history_manager import HistoryManager
+                self._history = HistoryManager()
+            except ImportError:
+                class MockHistoryManager:
+                    def get_module_history(self, *args, **kwargs):
+                        class MockHistory:
+                            def push(self, *args): pass
+                            def undo(self): return None
+                            def redo(self): return None
+                            @property
+                            def undo_stack(self): return [1, 2]
+                            @property
+                            def redo_stack(self): return []
+                        return MockHistory()
+                self._history = MockHistoryManager()
+        return self._history
+
+    @history.setter
+    def history(self, value):
+        self._history = value
 
     def publish_event(self, topic: str, data: Any = None) -> None:
         """Publish an event to the Central Event Bus."""
@@ -205,6 +210,14 @@ class PluginBase(QWidget):
         the plugin instance and its state. This helps the GC reclaim memory
         immediately when a tab is closed.
         """
+        try:
+            from biopro.core.resource_inspector import ResourceInspector
+        except ImportError:
+            class ResourceInspector:
+                @staticmethod
+                def get_heavy_resources(*args, **kwargs):
+                    return []
+
         # 1. Clean PluginState
         state = self.get_state()
         if state:
