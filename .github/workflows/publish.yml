@@ -9,6 +9,7 @@ jobs:
   publish:
     name: Build & Publish SDK
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       id-token: write # Required for PyPI OIDC trusted publishing
       contents: read
