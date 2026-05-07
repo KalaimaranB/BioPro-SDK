@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biopro-sdk"
+version = "1.0.0"
+description = "Software Development Kit and CLI for BioPro desktop plugins."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Kalaimaran Balasothy" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "cryptography>=41.0.0",
+    "PyQt6>=6.5.0",
+]
+
+[project.scripts]
+biopro-sdk = "biopro_sdk.sdk_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
