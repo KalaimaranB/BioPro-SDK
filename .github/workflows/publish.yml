@@ -2,30 +2,60 @@ name: Publish to PyPI
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 jobs:
   publish:
     name: Build & Publish SDK
     runs-on: ubuntu-latest
-    environment: release
+    environment:
+      name: release
     permissions:
       id-token: write # Required for PyPI OIDC trusted publishing
-      contents: read
+      contents: write # Required to create git tags
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for proper tag comparison
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Build Wheel
+      - name: Extract Version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if Tag Exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+            echo "TAG_EXISTS=true" >> $GITHUB_ENV
+            echo "Tag v${{ env.VERSION }} already exists. Skipping publish."
+          else
+            echo "TAG_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Git Tag
+        if: env.TAG_EXISTS == 'false'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
+
+      - name: Build Package
+        if: env.TAG_EXISTS == 'false'
         run: |
           pip install build
           python -m build
 
       - name: Publish to PyPI
+        if: env.TAG_EXISTS == 'false'
         uses: pypa/github-action-pypi-publish@release/v1
