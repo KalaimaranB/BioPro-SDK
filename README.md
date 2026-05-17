@@ -1,5 +1,9 @@
 # 🔌 BioPro SDK
 
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet?style=flat-square)](https://KalaimaranB.github.io/BioPro-SDK/)
+[![CI Build Status](https://img.shields.io/github/actions/workflow/status/KalaimaranB/BioPro-SDK/test_and_lint.yml?branch=main&style=flat-square&label=CI%20build)](https://github.com/KalaimaranB/BioPro-SDK/actions)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/KalaimaranB/BioPro-SDK/blob/main/LICENSE)
+
 The Software Development Kit (SDK) and Command-Line Interface (CLI) for building, validating, and signing plugins for the **BioPro** desktop scientific suite.
 
 ---
