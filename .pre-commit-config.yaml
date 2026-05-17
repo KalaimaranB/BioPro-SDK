@@ -24,3 +24,12 @@ repos:
       - id: mypy
         additional_dependencies: [types-requests, cryptography, PyQt6]
         args: [ --ignore-missing-imports ]
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: Run Unit Tests (Pytest)
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: true
