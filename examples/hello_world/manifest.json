@@ -1,0 +1,14 @@
+{
+    "id": "hello_world",
+    "name": "Hello World Blueprint",
+    "manifest_version": 2,
+    "authors": [
+        {
+            "name": "BioPro SDK Team",
+            "role": "Lead Developer"
+        }
+    ],
+    "version": "1.0.0",
+    "icon": "🧪",
+    "description": "Minimal plugin blueprint demonstrating PyQt6 widgets and semantic buttons."
+}

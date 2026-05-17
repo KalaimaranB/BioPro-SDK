@@ -5,6 +5,6 @@ Provides two main namespaces:
     - host: Host-facing APIs for the Core application and SDK signing CLI.
 """
 
-from . import plugin, host
+from . import host, plugin
 
 __all__ = ["plugin", "host"]

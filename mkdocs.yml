@@ -1,0 +1,61 @@
+site_name: BioPro SDK
+site_description: Software Development Kit and CLI for BioPro desktop plugins.
+site_author: Kalaimaran Balasothy
+site_url: https://KalaimaranB.github.io/BioPro-SDK/
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for light/dark mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Welcome: Home.md
+  - Getting Started: Getting_Started.md
+  - Developer Guides:
+      - Plugin Development: Dev_Handbook.md
+      - Cryptography & CI/CD: CI_CD_Guide.md
+  - API Reference:
+      - Master Overview: API_Reference.md
+      - Plugin Core: API_Plugin_Base.md
+      - UI & Custom Widgets: API_UI_Components.md
+      - Background Concurrency: API_Background_Engine.md
+      - Cryptography & Trust: API_Trust_Cryptography.md
+  - Architecture Deep-Dives: Architectural_Design.md

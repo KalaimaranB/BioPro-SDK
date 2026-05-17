@@ -8,6 +8,9 @@ Secured with transparent local background Machine Keys.
 import json
 import logging
 from pathlib import Path
+from typing import cast
+
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +19,7 @@ class LocalTrustRegistry:
     """Manages a registry of user-approved plugin snapshots secured by local Machine Keys."""
 
     def __init__(self):
+        """Initialize the local trust registry and load current overrides."""
         self.config_dir = Path.home() / ".biopro"
         self.storage_path = self.config_dir / "trust_overrides.json"
         self.private_key_path = self.config_dir / "machine_private.pem"
@@ -23,10 +27,9 @@ class LocalTrustRegistry:
         self._data: dict[str, dict[str, str]] = {}
         self._load()
 
-    def _get_or_create_machine_key(self):
+    def _get_or_create_machine_key(self) -> ed25519.Ed25519PrivateKey:
         """Retrieves or silently generates the local Ed25519 Machine Private Key on first boot."""
         from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import ed25519
 
         self.config_dir.mkdir(parents=True, exist_ok=True)
         if not self.private_key_path.exists():
@@ -43,7 +46,8 @@ class LocalTrustRegistry:
         else:
             with open(self.private_key_path, "rb") as f:
                 private_pem = f.read()
-            return serialization.load_pem_private_key(private_pem, password=None)
+            loaded_key = serialization.load_pem_private_key(private_pem, password=None)
+            return cast(ed25519.Ed25519PrivateKey, loaded_key)
 
     def _load(self):
         """Load stored overrides from disk and verify local cryptographic signature."""

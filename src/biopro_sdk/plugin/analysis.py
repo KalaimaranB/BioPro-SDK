@@ -182,6 +182,11 @@ class AnalysisRunnable(QRunnable):
     """
 
     def __init__(self, worker: AnalysisWorker):
+        """Initialize the runnable wrapper with a target worker.
+
+        Args:
+            worker: The background AnalysisWorker controller containing the job.
+        """
         super().__init__()
         self.worker: AnalysisWorker | None = worker
         # QThreadPool will take ownership and delete this runnable after run()

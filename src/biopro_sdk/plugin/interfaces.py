@@ -33,12 +33,14 @@ class BioProPlugin(Protocol):
 
     def cleanup(self) -> None:
         """Release instance-specific resources (e.g. caches, local memory).
+
         Called when a specific instance of the plugin panel is closed.
         """
         ...
 
     def shutdown(self) -> None:
         """Release global/module resources (e.g. GPU models, open files).
+
         Called when the application exists or the module is unloaded.
         """
         ...

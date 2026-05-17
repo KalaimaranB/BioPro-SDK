@@ -1,11 +1,11 @@
 """Host Tier — Core-facing subsystems and utilities for the BioPro application and SDK CLI."""
 
-from .trust_manager import TrustManager, VerificationResult, BIOPRO_ROOT_PUBLIC_KEY_HEX
+from .docs import PluginDocumentation, docs_registry
+from .sign_plugin import sign_plugin
+from .trust_manager import BIOPRO_ROOT_PUBLIC_KEY_HEX, TrustManager, VerificationResult
 from .trust_overrides import LocalTrustRegistry
 from .trust_path import TrustChain
 from .trust_storage import TrustCache
-from .docs import PluginDocumentation, docs_registry
-from .sign_plugin import sign_plugin
 
 _AI_SYMBOLS = {"AIAssistant", "AIServerManager", "ai_manager"}
 

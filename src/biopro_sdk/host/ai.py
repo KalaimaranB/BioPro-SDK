@@ -34,6 +34,11 @@ class AIServerManager:
     """Manages the standalone Gemma 4 inference server."""
 
     def __init__(self, model_path: str | None = None):
+        """Initialize the server manager with a model path.
+
+        Args:
+            model_path: Optional path to the GGUF model file.
+        """
         if model_path is None:
             # Move model storage to a persistent, writable user directory
             self.model_path = str(Path.home() / ".biopro" / "models" / "gemma4.gguf")
@@ -152,6 +157,11 @@ class AIServerManager:
         self.signals.server_stopped.emit()
 
     def is_running(self) -> bool:
+        """Check if the AI inference server is currently alive and responsive.
+
+        Returns:
+            True if the server responded to the model query endpoint, False otherwise.
+        """
         import socket
 
         try:
@@ -174,10 +184,17 @@ class AIServerManager:
 class AIAssistant:
     """Interface for plugins to interact with the Gemma 4 AI."""
 
-    def __init__(self, server_url: str = "http://localhost:8080"):
+    def __init__(self, server_url: str = "http://localhost:8080", host_docs_dir: str | Path | None = None):
+        """Initialize the AI assistant with server connection details.
+
+        Args:
+            server_url: Address of the running inference engine.
+            host_docs_dir: Root directory containing compiled index manuals.
+        """
         self.server_url = server_url
         self.logger = logging.getLogger("biopro.ai")
         self.history: list[dict[str, str]] = []  # Keep track of conversation
+        self.host_docs_dir = Path(host_docs_dir) if host_docs_dir else None
 
     def ask_question(
         self,
@@ -322,7 +339,11 @@ class AIAssistant:
                     discovered_files.append((filepath, doc_type))
 
         if include_core:
+            # 1. Look in SDK docs (fallback or SDK-specific docs)
             find_docs(base_dir / "docs", "core")
+            # 2. Look in Host docs (the main application)
+            if self.host_docs_dir:
+                find_docs(self.host_docs_dir, "core")
 
         if plugin_id:
             find_docs(base_dir / "biopro" / "plugins" / plugin_id, "plugin")

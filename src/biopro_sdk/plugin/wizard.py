@@ -35,17 +35,17 @@ except ImportError:
         FG_PRIMARY = "#FFFFFF"
         ACCENT_SUCCESS = "#28a745"
         FG_DISABLED = "#6c757d"
-    
+
     class FallbackFonts:
         FAMILY_UI = "Segoe UI, Arial"
         FAMILY_HEADINGS = "Segoe UI, Arial"
         SIZE_LARGE = 18
         SIZE_NORMAL = 13
         SIZE_SMALL = 11
-        
+
     Colors = FallbackColors
     Fonts = FallbackFonts
-    
+
     class MockThemeManager:
         class MockSignal:
             def connect(self, callback): pass

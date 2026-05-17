@@ -8,6 +8,7 @@ class PluginDocumentation:
     """Registry for plugin help documentation."""
 
     def __init__(self):
+        """Initialize the documentation registry with empty mapping stores."""
         # Format: { plugin_id: { page_id: file_path } }
         self._registry: dict[str, dict[str, str]] = {}
 

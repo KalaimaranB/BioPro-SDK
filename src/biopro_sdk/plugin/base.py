@@ -10,8 +10,6 @@ from typing import Any
 
 from PyQt6.QtWidgets import QWidget
 
-
-
 try:
     from biopro.ui.theme import Colors, theme_manager
 except ImportError:
@@ -240,6 +238,7 @@ class PluginBase(QWidget):
 
     def _apply_theme_styles(self) -> None:
         """Re-applies theme-aware styles to the plugin.
+
         Subclasses should override this if they have complex custom styling.
         """
         # Force a re-evaluation of the base stylesheet

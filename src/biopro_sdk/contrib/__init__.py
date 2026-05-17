@@ -18,7 +18,7 @@ except ImportError:
     # Standalone fallback: raise ImportError only if called, keeping SDK CLI lightweight
     def _raise_import_error(*args, **kwargs):
         raise ImportError("This utility requires 'biopro-core' or 'scikit-image' to be installed.")
-    
+
     adjust_contrast = _raise_import_error
     auto_detect_inversion = _raise_import_error
     crop_to_content = _raise_import_error

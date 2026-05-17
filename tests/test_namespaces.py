@@ -1,5 +1,5 @@
 import sys
-import pytest
+
 
 def test_plugin_namespace_isolation():
     """Verify that importing biopro_sdk.plugin succeeds even when requests is blocked/missing."""

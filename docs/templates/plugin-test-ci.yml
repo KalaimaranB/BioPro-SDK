@@ -1,0 +1,41 @@
+name: BioPro Standalone Plugin Test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install System Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install qt
+
+      - name: Install BioPro SDK & Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install uv
+          uv pip install --system biopro-sdk pytest pytest-qt PyQt6-headless
+
+      - name: Run Plugin Unit Tests
+        run: |
+          pytest

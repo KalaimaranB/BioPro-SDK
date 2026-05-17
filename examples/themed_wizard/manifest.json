@@ -1,0 +1,14 @@
+{
+    "id": "themed_wizard",
+    "name": "Guided Themed Wizard Blueprint",
+    "manifest_version": 2,
+    "authors": [
+        {
+            "name": "BioPro SDK Team",
+            "role": "Lead Developer"
+        }
+    ],
+    "version": "1.0.0",
+    "icon": "🧙‍♂️",
+    "description": "Exhibits guided wizard steps, real-time theme adaptation, local configurations, and undo/redo stacks."
+}
