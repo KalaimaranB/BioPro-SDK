@@ -13,15 +13,21 @@ from PyQt6.QtWidgets import QWidget
 try:
     from biopro.ui.theme import Colors, theme_manager
 except ImportError:
+
     class FallbackColors:
         BG_DARKEST = "#121212"
         FG_PRIMARY = "#FFFFFF"
         PRIMARY = "#007ACC"
+
     Colors = FallbackColors
+
     class MockThemeManager:
         class MockSignal:
-            def connect(self, *args): pass
+            def connect(self, *args):
+                pass
+
         theme_changed = MockSignal()
+
     theme_manager = MockThemeManager()
 
 from .events import CentralEventBus
@@ -90,19 +96,32 @@ class PluginBase(QWidget):
         if not hasattr(self, "_history") or self._history is None:
             try:
                 from biopro.core.history_manager import HistoryManager
+
                 self._history = HistoryManager()
             except ImportError:
+
                 class MockHistoryManager:
                     def get_module_history(self, *args, **kwargs):
                         class MockHistory:
-                            def push(self, *args): pass
-                            def undo(self): return None
-                            def redo(self): return None
+                            def push(self, *args):
+                                pass
+
+                            def undo(self):
+                                return None
+
+                            def redo(self):
+                                return None
+
                             @property
-                            def undo_stack(self): return [1, 2]
+                            def undo_stack(self):
+                                return [1, 2]
+
                             @property
-                            def redo_stack(self): return []
+                            def redo_stack(self):
+                                return []
+
                         return MockHistory()
+
                 self._history = MockHistoryManager()
         return self._history
 
@@ -211,6 +230,7 @@ class PluginBase(QWidget):
         try:
             from biopro.core.resource_inspector import ResourceInspector
         except ImportError:
+
             class ResourceInspector:
                 @staticmethod
                 def get_heavy_resources(*args, **kwargs):

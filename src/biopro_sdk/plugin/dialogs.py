@@ -64,9 +64,7 @@ def import_assets_workflow(parent, project_manager, file_paths: list[str]) -> li
         "Group Files?",
         "Would you like to create a subdirectory in 'assets' for this collected set of files?",
     ):
-        subfolder = get_text(
-            parent, "Subdirectory Name", "Enter folder name:", default="experiment_data"
-        )
+        subfolder = get_text(parent, "Subdirectory Name", "Enter folder name:", default="experiment_data")
         if not subfolder or not subfolder.strip():
             subfolder = None
 
@@ -84,9 +82,7 @@ def import_assets_workflow(parent, project_manager, file_paths: list[str]) -> li
     return project_manager.batch_add_images(path_objs, copy_to_workspace, subfolder)
 
 
-def get_save_path(
-    parent=None, title: str = "Save As", start_dir: str = "", file_filter: str = ""
-) -> str | None:
+def get_save_path(parent=None, title: str = "Save As", start_dir: str = "", file_filter: str = "") -> str | None:
     """Show save file dialog.
 
     Args:
@@ -169,9 +165,7 @@ def ask_yes_no(parent=None, title: str = "", message: str = "") -> bool:
     Returns:
         True if user clicks Yes, False otherwise
     """
-    reply = QMessageBox.question(
-        parent, title, message, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-    )
+    reply = QMessageBox.question(parent, title, message, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
     return reply == QMessageBox.StandardButton.Yes
 
 

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QFrame, QLabel, QPushButton
 try:
     from biopro.ui.theme import Colors, Fonts, theme_manager
 except ImportError:
+
     class FallbackColors:
         ACCENT_PRIMARY = "#007ACC"
         BG_DARKEST = "#121212"
@@ -33,8 +34,11 @@ except ImportError:
 
     class MockThemeManager:
         class MockSignal:
-            def connect(self, callback): pass
+            def connect(self, callback):
+                pass
+
         theme_changed = MockSignal()
+
     theme_manager = MockThemeManager()
 
 
@@ -239,8 +243,4 @@ class SubtitleLabel(QLabel):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
-        self.setStyleSheet(
-            f"font-size: {Fonts.SIZE_NORMAL}px; "
-            f"font-weight: 600; "
-            f"color: {Colors.FG_PRIMARY};"
-        )
+        self.setStyleSheet(f"font-size: {Fonts.SIZE_NORMAL}px; font-weight: 600; color: {Colors.FG_PRIMARY};")

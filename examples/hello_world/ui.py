@@ -1,11 +1,10 @@
 """UI Panel implementation for the Hello World blueprint plugin."""
 
-from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
-
 from biopro_sdk.plugin import PluginBase, PluginState
 from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
 from biopro_sdk.plugin.dialogs import show_info, show_warning
+from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
 
 
 class HelloWorldState(PluginState):

@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from biopro_sdk.plugin.base import PluginBase
 from biopro_sdk.plugin.state import PluginState
 
@@ -14,6 +13,7 @@ class MockState(PluginState):
     filter_type: str = "Gaussian"
     heavy_data: list = None
 
+
 class MockPlugin(PluginBase):
     def __init__(self, plugin_id: str, parent=None):
         super().__init__(plugin_id, parent)
@@ -23,7 +23,8 @@ class MockPlugin(PluginBase):
     def get_state(self) -> MockState:
         return self.state
 
-    def set_state(self, state: MockState) -> None:
+    def set_state(self, state: PluginState) -> None:
+        assert isinstance(state, MockState)
         self.state = state
 
 
@@ -32,11 +33,7 @@ def test_plugin_state_serialization():
     state = MockState(threshold=0.8, filter_type="Median")
     state_dict = state.to_dict()
 
-    assert state_dict == {
-        "threshold": 0.8,
-        "filter_type": "Median",
-        "heavy_data": None
-    }
+    assert state_dict == {"threshold": 0.8, "filter_type": "Median", "heavy_data": None}
 
     new_state = MockState.from_dict(state_dict)
     assert isinstance(new_state, MockState)
@@ -108,29 +105,17 @@ def test_plugin_undo_redo_history():
     # Test Push State
     plugin.push_state()
     mock_history.get_module_history.assert_called_with("test_history")
-    mock_module_history.push.assert_called_once_with({
-        "threshold": 0.95,
-        "filter_type": "Gaussian",
-        "heavy_data": None
-    })
+    mock_module_history.push.assert_called_once_with({"threshold": 0.95, "filter_type": "Gaussian", "heavy_data": None})
     assert spy.call_count == 1
 
     # Test Undo
-    mock_module_history.undo.return_value = {
-        "threshold": 0.5,
-        "filter_type": "Gaussian",
-        "heavy_data": None
-    }
+    mock_module_history.undo.return_value = {"threshold": 0.5, "filter_type": "Gaussian", "heavy_data": None}
     plugin.undo()
     assert plugin.state.threshold == 0.5
     assert spy.call_count == 2
 
     # Test Redo
-    mock_module_history.redo.return_value = {
-        "threshold": 0.95,
-        "filter_type": "Gaussian",
-        "heavy_data": None
-    }
+    mock_module_history.redo.return_value = {"threshold": 0.95, "filter_type": "Gaussian", "heavy_data": None}
     plugin.redo()
     assert plugin.state.threshold == 0.95
     assert spy.call_count == 3
@@ -156,7 +141,7 @@ def test_cleanup_and_destructor_raii():
     mock_inspector = MagicMock()
     mock_inspector.get_heavy_resources.side_effect = [
         [("heavy_data", plugin.state.heavy_data)],  # attributes of State
-        [("heavy_asset", plugin.heavy_asset)]      # attributes of Instance
+        [("heavy_asset", plugin.heavy_asset)],  # attributes of Instance
     ]
 
     with patch.dict(sys.modules, {"biopro.core.resource_inspector": MagicMock(ResourceInspector=mock_inspector)}):
@@ -178,6 +163,7 @@ def test_widget_close_event():
 
     # Create real QCloseEvent
     from PyQt6.QtGui import QCloseEvent
+
     event = QCloseEvent()
 
     plugin.closeEvent(event)

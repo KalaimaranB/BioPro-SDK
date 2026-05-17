@@ -85,15 +85,15 @@ class MyFirstPanel(PluginBase):
     def __init__(self, parent=None):
         super().__init__(plugin_id="my_plugin", parent=parent)
         self.state = NormalizationState()
-        
+
         layout = QVBoxLayout(self)
         self.input = QLineEdit()
         self.btn = PrimaryButton("Apply Filter")
-        
+
         layout.addWidget(QLabel("Notes:"))
         layout.addWidget(self.input)
         layout.addWidget(self.btn)
-        
+
         # Connect slots
         self.input.textChanged.connect(self.on_notes_changed)
         self.btn.clicked.connect(self.on_apply)
@@ -129,10 +129,10 @@ class NormalizationEngine(AnalysisBase):
         # Frequently check if cancellation has been requested:
         if self.is_cancelled():
             return {"status": "cancelled"}
-            
+
         # Emit progress to the UI
         self.signals.analysis_progress.emit(50)
-        
+
         return {"status": "completed", "mean_deviation": 0.045}
 ```
 
@@ -161,10 +161,10 @@ from biopro_sdk.plugin import PluginConfig
 class MyPreferences:
     def __init__(self):
         self.config = PluginConfig("my_plugin")
-        
+
     def load_gpu_enabled(self) -> bool:
         return self.config.get("use_gpu", False)
-        
+
     def save_gpu_enabled(self, enabled: bool) -> None:
         self.config.set("use_gpu", enabled)
         self.config.save()  # Flushes to local disk JSON

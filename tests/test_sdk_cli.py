@@ -3,7 +3,6 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from biopro_sdk.sdk_cli import SDKCLI, main
 
 
@@ -74,7 +73,7 @@ def test_cli_sign_plugin_missing_identity(temp_biopro_home, tmp_path):
 def test_cli_sign_plugin_missing_manifest(temp_biopro_home, tmp_path):
     """Test plugin signing fails if target plugin lacks manifest.json."""
     cli = temp_biopro_home
-    cli.init_identity(is_project=False) # Setup identity
+    cli.init_identity(is_project=False)  # Setup identity
 
     plugin_dir = tmp_path / "my_plugin"
     plugin_dir.mkdir()
@@ -86,7 +85,7 @@ def test_cli_sign_plugin_missing_manifest(temp_biopro_home, tmp_path):
 def test_cli_sign_plugin_success(temp_biopro_home, tmp_path):
     """Test successful Merkle-integrity calculation and Ed25519 signing."""
     cli = temp_biopro_home
-    cli.init_identity(is_project=False) # Setup identity
+    cli.init_identity(is_project=False)  # Setup identity
 
     plugin_dir = tmp_path / "my_plugin"
     plugin_dir.mkdir()
@@ -97,7 +96,7 @@ def test_cli_sign_plugin_success(temp_biopro_home, tmp_path):
         "name": "My Plugin",
         "version": "1.0.0",
         "description": "A scientific tool",
-        "author": "Dr. Biotech" # Legacy V1 field to test migration
+        "author": "Dr. Biotech",  # Legacy V1 field to test migration
     }
     with open(plugin_dir / "manifest.json", "w") as f:
         json.dump(manifest_data, f)
@@ -126,8 +125,8 @@ def test_cli_sign_plugin_success(temp_biopro_home, tmp_path):
     assert "integrity" in manifest
     assert "hashes" in manifest["integrity"]
     assert "analysis.py" in manifest["integrity"]["hashes"]
-    assert "signature.bin" not in manifest["integrity"]["hashes"] # Ignored
-    assert manifest["authors"] == [{"name": "Dr. Biotech"}] # Migrated
+    assert "signature.bin" not in manifest["integrity"]["hashes"]  # Ignored
+    assert manifest["authors"] == [{"name": "Dr. Biotech"}]  # Migrated
 
 
 def test_cli_sign_all(temp_biopro_home, tmp_path):
@@ -200,7 +199,9 @@ def test_cli_evaluate_plugin_failures(temp_biopro_home, tmp_path):
     assert cli.evaluate_plugin(str(plugin_dir)) is False
 
     # Case 4: Missing python source files
-    manifest_file.write_text('{"id": "bad", "name": "Bad", "version": "1.0", "description": "desc", "authors": [{"name": "A"}], "signed_by": {"entity_id": "1"}, "manifest_version": 2}')
+    manifest_file.write_text(
+        '{"id": "bad", "name": "Bad", "version": "1.0", "description": "desc", "authors": [{"name": "A"}], "signed_by": {"entity_id": "1"}, "manifest_version": 2}'
+    )
     assert cli.evaluate_plugin(str(plugin_dir)) is False
 
 
@@ -219,9 +220,9 @@ def test_cli_evaluate_plugin_success_and_warns(temp_biopro_home, tmp_path):
         "authors": [{"name": "Lead Researcher"}],
         "signed_by": {"entity_type": "developer", "entity_id": "local_dev"},
         "dependencies": {
-            "numpy": "1.23.0", # pinned dependency
-            "pandas": ">=1.5.0" # non-pinned warning trigger
-        }
+            "numpy": "1.23.0",  # pinned dependency
+            "pandas": ">=1.5.0",  # non-pinned warning trigger
+        },
     }
     with open(plugin_dir / "manifest.json", "w") as f:
         json.dump(manifest_data, f)
@@ -336,7 +337,7 @@ def test_cli_evaluate_plugin_edge_cases(temp_biopro_home, tmp_path):
         "description": "desc",
         "manifest_version": 2,
         "authors": [{"name": "A"}],
-        "signed_by": {"entity_id": "me"}
+        "signed_by": {"entity_id": "me"},
     }
     with open(plugin_dir / "manifest.json", "w") as f:
         json.dump(manifest_data, f)
@@ -370,7 +371,6 @@ def test_cli_evaluate_plugin_edge_cases(temp_biopro_home, tmp_path):
     assert cli.evaluate_plugin(str(plugin_dir)) is False
 
 
-
 @patch("biopro_sdk.sdk_cli.sys.exit")
 def test_main_subparsers_all_routes(mock_exit):
     """Test all argparse subparser commands map correctly to SDKCLI functions."""
@@ -401,4 +401,3 @@ def test_main_subparsers_all_routes(mock_exit):
         with patch.object(sys, "argv", ["biopro-sdk", "sbom", "--json"]):
             main()
             mock_cli.generate_sbom.assert_called_with("--json")
-

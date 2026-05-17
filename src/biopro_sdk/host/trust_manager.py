@@ -88,9 +88,7 @@ class TrustManager:
             self.trusted_roots.append(self.primary_root)
         else:
             try:
-                hardcoded_root = ed25519.Ed25519PublicKey.from_public_bytes(
-                    bytes.fromhex(BIOPRO_ROOT_PUBLIC_KEY_HEX)
-                )
+                hardcoded_root = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(BIOPRO_ROOT_PUBLIC_KEY_HEX))
                 self.trusted_roots.append(hardcoded_root)
             except Exception as e:
                 logger.error(f"Failed to load hardcoded root key: {e}")
@@ -169,9 +167,7 @@ class TrustManager:
             cache = self._get_cache()
             if cache and cache.is_trusted(plugin_path):
                 cached_path = cache.data.get(plugin_path.name, {}).get("trust_path")
-                return VerificationResult(
-                    success=True, trust_level="verified_cache", trust_path=cached_path
-                )
+                return VerificationResult(success=True, trust_level="verified_cache", trust_path=cached_path)
 
             # 2. Authenticity: Chain of Trust (Root -> Developer -> Plugin)
             auth_result = self._verify_signatures(plugin_path)
@@ -215,9 +211,7 @@ class TrustManager:
             return VerificationResult(
                 success=False,
                 error_message=f"Critical Verification Error: {str(e)}",
-                calculated_hashes=integrity_result.calculated_hashes
-                if "integrity_result" in locals()
-                else None,
+                calculated_hashes=integrity_result.calculated_hashes if "integrity_result" in locals() else None,
             )
 
     def _verify_signatures(self, plugin_path: Path) -> VerificationResult:
@@ -241,9 +235,7 @@ class TrustManager:
             # 1. Load the Trust Chain
             chain = TrustChain.from_file(chain_file)
             if not chain or not chain.links:
-                return VerificationResult(
-                    success=False, error_message="Invalid or empty trust chain."
-                )
+                return VerificationResult(success=False, error_message="Invalid or empty trust chain.")
 
             # --- RECURSIVE LOGIC ---
             # A chain is [L0, L1, ..., Ln] where Ln is the Root-signed link and L0 is the Developer.
@@ -255,15 +247,11 @@ class TrustManager:
                 parent = chain.links[i + 1]
 
                 child_sub_bytes = bytes.fromhex(child.subject_pub)
-                parent_sub_key = ed25519.Ed25519PublicKey.from_public_bytes(
-                    bytes.fromhex(parent.subject_pub)
-                )
+                parent_sub_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(parent.subject_pub))
 
                 try:
                     parent_sub_key.verify(bytes.fromhex(child.signature), child_sub_bytes)
-                    verified_links.append(
-                        {"name": child.subject_name, "status": "verified", "key": child.subject_pub}
-                    )
+                    verified_links.append({"name": child.subject_name, "status": "verified", "key": child.subject_pub})
                 except InvalidSignature:
                     return VerificationResult(
                         success=False,
@@ -309,18 +297,14 @@ class TrustManager:
                 )
 
             # Add the top link to verified links
-            verified_links.append(
-                {"name": top_link.subject_name, "status": "anchor", "key": top_link.subject_pub}
-            )
+            verified_links.append({"name": top_link.subject_name, "status": "anchor", "key": top_link.subject_pub})
 
             # Reorder for UI (BioPro -> ... -> Dev)
             full_path = [{"name": "BioPro Core", "status": "root"}] + list(reversed(verified_links))
 
             # 3. Verify Manifest Signature against Developer Key (Bottom Link)
             dev_link = chain.links[0]
-            dev_public_key = ed25519.Ed25519PublicKey.from_public_bytes(
-                bytes.fromhex(dev_link.subject_pub)
-            )
+            dev_public_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(dev_link.subject_pub))
 
             with open(sig_file, "rb") as f:
                 plugin_signature = f.read()
@@ -345,9 +329,7 @@ class TrustManager:
             return VerificationResult(success=True, trust_path=full_path)
 
         except Exception as e:
-            return VerificationResult(
-                success=False, error_message=f"Chain Verification Error: {str(e)}"
-            )
+            return VerificationResult(success=False, error_message=f"Chain Verification Error: {str(e)}")
 
     def _check_integrity(self, plugin_path: Path) -> VerificationResult:
         """Verifies every file in the directory against the signed manifest hashes."""
@@ -357,9 +339,7 @@ class TrustManager:
 
             signed_hashes = manifest.get("integrity", {}).get("hashes", {})
             if not signed_hashes:
-                return VerificationResult(
-                    success=False, error_message="Missing integrity manifest in manifest.json."
-                )
+                return VerificationResult(success=False, error_message="Missing integrity manifest in manifest.json.")
 
             # 0. Load Custom Exclusions from Manifest (strip slashes for directory matching)
             raw_exclusions = manifest.get("integrity", {}).get("exclusions", [])
@@ -398,9 +378,7 @@ class TrustManager:
                         if any(file.endswith(ext) for ext in self.MANDATORY_EXTENSIONS):
                             integrity_passed = False
                             if not error_msg:
-                                error_msg = (
-                                    f"Unauthorized File: {rel_path} is not in the signed manifest."
-                                )
+                                error_msg = f"Unauthorized File: {rel_path} is not in the signed manifest."
                         continue
 
                     # 2. Check File Hash
@@ -414,9 +392,7 @@ class TrustManager:
                 if signed_path not in found_files:
                     integrity_passed = False
                     if not error_msg:
-                        error_msg = (
-                            f"Missing File: {signed_path} was signed but is not present on disk."
-                        )
+                        error_msg = f"Missing File: {signed_path} was signed but is not present on disk."
 
             return VerificationResult(
                 success=integrity_passed,
@@ -426,9 +402,7 @@ class TrustManager:
             )
 
         except Exception as e:
-            return VerificationResult(
-                success=False, error_message=f"Integrity Check Error: {str(e)}"
-            )
+            return VerificationResult(success=False, error_message=f"Integrity Check Error: {str(e)}")
 
     def _hash_file(self, full_path: str) -> str:
         """Utility to calculate SHA-256 for a file."""

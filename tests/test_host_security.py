@@ -4,15 +4,14 @@ import os
 from unittest.mock import patch
 
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
-
 from biopro_sdk.host.docs import PluginDocumentation
 from biopro_sdk.host.sign_plugin import sign_plugin
 from biopro_sdk.host.trust_manager import TrustManager
 from biopro_sdk.host.trust_overrides import LocalTrustRegistry
 from biopro_sdk.host.trust_path import TrustChain, TrustLink
 from biopro_sdk.host.trust_storage import TrustCache
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
 @pytest.fixture
@@ -31,15 +30,12 @@ def test_trust_manager_root_loading_and_developer_trust(temp_sec_env):
 
     # 1. Initialize empty trust manager
     tm = TrustManager()
-    assert len(tm.trusted_roots) >= 1 # Fallback primary key exists
+    assert len(tm.trusted_roots) >= 1  # Fallback primary key exists
 
     # 2. Generate a new developer key to trust
     dev_private = ed25519.Ed25519PrivateKey.generate()
     dev_pub = dev_private.public_key()
-    dev_pub_bytes = dev_pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw
-    )
+    dev_pub_bytes = dev_pub.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
     dev_pub_hex = dev_pub_bytes.hex()
 
     # 3. Trust the developer
@@ -126,10 +122,7 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
 
     dev_private = ed25519.Ed25519PrivateKey.generate()
     dev_pub = dev_private.public_key()
-    dev_pub_raw = dev_pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw
-    )
+    dev_pub_raw = dev_pub.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
 
     # 2. Self-sign dev cert via Root (simulate local onboarding root)
     sig_by_root = root_private.sign(dev_pub_raw)
@@ -157,11 +150,7 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
         "version": "1.0.0",
         "description": "Valid Plugin desc",
         "manifest_version": 2,
-        "integrity": {
-            "hashes": {
-                "main.py": py_hash
-            }
-        }
+        "integrity": {"hashes": {"main.py": py_hash}},
     }
 
     # Canonicalize manifest and sign it using dev key
@@ -179,18 +168,15 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
         subject_name="Developer",
         subject_pub=dev_pub_raw.hex(),
         issuer_name="Onboarding Root",
-        signature=sig_by_root.hex()
+        signature=sig_by_root.hex(),
     )
     # The top link is root-signed
-    root_pub_raw = root_pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw
-    )
+    root_pub_raw = root_pub.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
     link_root = TrustLink(
         subject_name="Onboarding Root",
         subject_pub=root_pub_raw.hex(),
         issuer_name="BioPro Authority",
-        signature=root_private.sign(root_pub_raw).hex() # self-signed root link
+        signature=root_private.sign(root_pub_raw).hex(),  # self-signed root link
     )
     chain = TrustChain(links=[link_dev, link_root])
     with open(plugin_dir / "trust_chain.json", "w") as f:
@@ -254,6 +240,7 @@ def test_plugin_signer_missing_files(tmp_path):
 def test_sign_plugin_direct(tmp_path):
     """Test sign_plugin with valid mock manifest and credentials."""
     from biopro_sdk.host.sign_plugin import sign_plugin
+
     plugin_dir = tmp_path / "my_plugin"
     plugin_dir.mkdir()
 
@@ -267,7 +254,7 @@ def test_sign_plugin_direct(tmp_path):
     key_pem = private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
     priv_path = tmp_path / "key.pem"
@@ -296,8 +283,7 @@ def test_trust_manager_roots_and_developer(tmp_path):
         # Write valid PEM public key to glob
         private_key = ed25519.Ed25519PrivateKey.generate()
         pub_pem = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
         (roots_dir / "valid_anchor.pub").write_bytes(pub_pem)
 
@@ -306,16 +292,18 @@ def test_trust_manager_roots_and_developer(tmp_path):
 
         # Reload roots
         tm._load_all_roots()
-        assert len(tm.trusted_roots) >= 2 # Core root + valid_anchor
+        assert len(tm.trusted_roots) >= 2  # Core root + valid_anchor
 
         # Test trust_developer invalid public key length
-        assert tm.trust_developer("dev_name", "aabbcc") is False # 3 bytes instead of 32
+        assert tm.trust_developer("dev_name", "aabbcc") is False  # 3 bytes instead of 32
 
         # Test trust_developer successfully
-        pub_hex = ed25519.Ed25519PrivateKey.generate().public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        ).hex()
+        pub_hex = (
+            ed25519.Ed25519PrivateKey.generate()
+            .public_key()
+            .public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
+            .hex()
+        )
 
         assert tm.trust_developer("Dev Name", pub_hex) is True
 
@@ -348,7 +336,7 @@ def test_trust_cache_details(tmp_path):
 
     # 4. Save exception trigger
     with patch("builtins.open", side_effect=OSError("Permission denied")):
-        cache.clear() # Calls _save internally
+        cache.clear()  # Calls _save internally
 
     # 5. __pycache__ ignore and OSError
     pycache_dir = plugin_path / "__pycache__"
@@ -357,6 +345,7 @@ def test_trust_cache_details(tmp_path):
 
     # Trigger OSError selectively by patching getmtime only on file checks
     real_getmtime = os.path.getmtime
+
     def mock_getmtime_selective(filepath):
         if str(filepath).endswith("main.py"):
             raise OSError("File missing")
@@ -403,7 +392,3 @@ def test_local_trust_registry_tampering_and_save(tmp_path):
         # 6. Remove trust
         reg5.remove_trust("plugin_a")
         assert reg5.is_locally_trusted("plugin_a", hashes) is False
-
-
-
-

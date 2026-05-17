@@ -64,10 +64,10 @@ class MyPluginClass(BioProPlugin):
     def create_panel(self, parent=None) -> QWidget:
         panel = QWidget(parent)
         layout = QVBoxLayout(panel)
-        
+
         title = QLabel("Welcome to Custom Analysis Panel")
         btn = PrimaryButton("Execute Step")
-        
+
         layout.addWidget(title)
         layout.addWidget(btn)
         return panel

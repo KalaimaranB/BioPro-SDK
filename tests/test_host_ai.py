@@ -2,7 +2,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-
 from biopro_sdk.host.ai import AIAssistant, AIServerManager
 
 
@@ -22,7 +21,7 @@ def test_ai_server_manager_initialization(mock_socket, temp_ai_env):
     _, biopro_dir = temp_ai_env
 
     mock_s = MagicMock()
-    mock_s.connect_ex.return_value = 1 # closed
+    mock_s.connect_ex.return_value = 1  # closed
     mock_socket.return_value.__enter__.return_value = mock_s
 
     manager = AIServerManager()
@@ -81,7 +80,7 @@ def test_ai_server_launches_new_subprocess(mock_run, mock_popen, mock_socket, mo
 
     # Simulate port 8080 is closed (returns 1 on connect_ex)
     mock_s = MagicMock()
-    mock_s.connect_ex.side_effect = [1, 0, 0] # closed initially, then opens during polling
+    mock_s.connect_ex.side_effect = [1, 0, 0]  # closed initially, then opens during polling
     mock_socket.return_value.__enter__.return_value = mock_s
 
     # Mock requests to succeed on launch verification loop
@@ -127,13 +126,7 @@ def test_ai_assistant_ask_question_non_stream(mock_post, temp_ai_env, tmp_path):
     # Mock successful response
     mock_res = MagicMock(status_code=200)
     mock_res.json.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": "I am the BioPro assistant. Here is your advice."
-                }
-            }
-        ]
+        "choices": [{"message": {"content": "I am the BioPro assistant. Here is your advice."}}]
     }
     mock_post.return_value = mock_res
 
@@ -152,7 +145,7 @@ def test_ai_assistant_ask_question_stream(mock_post):
     chunks = [
         b'data: {"choices": [{"delta": {"content": "Hello"}}]}',
         b'data: {"choices": [{"delta": {"content": " world"}}]}',
-        b"data: [DONE]"
+        b"data: [DONE]",
     ]
 
     mock_res = MagicMock(status_code=200)
@@ -185,6 +178,7 @@ def test_ai_assistant_connection_error(mock_post):
 def test_ai_assistant_query_docs():
     """Verify documentation queries register help indices."""
     from biopro_sdk.host.docs import docs_registry
+
     docs_registry.register_page("my_plugin", "index", "/path/to/help.md")
 
     assistant = AIAssistant()

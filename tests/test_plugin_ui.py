@@ -1,8 +1,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PyQt6.QtWidgets import QMessageBox, QWidget
-
 from biopro_sdk.plugin.analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from biopro_sdk.plugin.components import (
     DangerButton,
@@ -38,10 +36,12 @@ from biopro_sdk.plugin.validation import (
     validate_value_range,
 )
 from biopro_sdk.plugin.wizard import StepIndicator, WizardPanel, WizardStep
+from PyQt6.QtWidgets import QMessageBox, QWidget
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. UI COMPONENTS TESTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_plugin_components():
     """Verify standard theme-aware button and label rendering structures."""
@@ -67,6 +67,7 @@ def test_plugin_components():
 
     # Glow effect testing
     from biopro_sdk.plugin.components import Colors
+
     Colors.GLOW_COLOR = "#FF0000"
     btn_glow = PrimaryButton("Glow")
     btn_glow._apply_theme_styles()
@@ -75,10 +76,10 @@ def test_plugin_components():
     Colors.GLOW_COLOR = "transparent"
 
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # 2. VALIDATION UTILITIES TESTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_plugin_validation(tmp_path):
     """Test path checks, boundary values, positive checks, and string emptiness."""
@@ -118,6 +119,7 @@ def test_plugin_validation(tmp_path):
 # ──────────────────────────────────────────────────────────────────────────────
 # 3. I/O CONFIG & LOGGER TESTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def test_plugin_io_config_logger(tmp_path):
     """Verify PluginConfig JSON loading, storage accessors, and unified logs."""
@@ -160,6 +162,7 @@ def test_plugin_io_config_logger(tmp_path):
 # 4. CENTRAL EVENT BUS TESTS
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_plugin_events():
     """Verify decoupled topic subscriptions and async routing."""
     called_payloads = []
@@ -179,12 +182,13 @@ def test_plugin_events():
     # Test unsubscribe
     CentralEventBus.unsubscribe("flow.align", callback)
     bus._handle_event("flow.align", "another_align")
-    assert len(called_payloads) == 1 # unchanged
+    assert len(called_payloads) == 1  # unchanged
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 5. ANALYSIS & UTILITY BACKGROUND TASK TESTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class MockAnalyzer(AnalysisBase):
     def run(self, state=None):
@@ -212,6 +216,7 @@ def test_plugin_analysis_and_managed_task():
     # Task error trigger test
     def bad_func():
         raise ValueError("failed task")
+
     error_task = FunctionalTask(func=bad_func)
     with pytest.raises(ValueError):
         error_task.run()
@@ -245,18 +250,24 @@ def test_plugin_analysis_and_managed_task():
 # 6. STEP-BASED WIZARD STEPPERS TESTS
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class DummyStep1(WizardStep):
     label = "Step 1"
+
     def build_page(self, panel):
         return QWidget()
+
     def on_next(self, panel):
         return True
+
 
 class DummyStep2(WizardStep):
     label = "Step 2"
     is_terminal = True
+
     def build_page(self, panel):
         return QWidget()
+
     def on_next(self, panel):
         return True
 
@@ -290,6 +301,7 @@ def test_plugin_wizard_navigation():
 # ──────────────────────────────────────────────────────────────────────────────
 # 7. THEME-AWARE CONTEXT DIALOGS TESTS
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @patch("PyQt6.QtWidgets.QFileDialog.getOpenFileName")
 def test_dialogs_file_pickers(mock_open_file):
@@ -411,10 +423,13 @@ def test_interfaces_compliance():
     class CompliantPlugin:
         __version__ = "1.0.0"
         __plugin_id__ = "compliant"
+
         def get_panel_class(self):
             return QWidget
+
         def cleanup(self):
             pass
+
         def shutdown(self):
             pass
 
@@ -432,12 +447,23 @@ def test_preferences_protocol_compliance():
     from biopro_sdk.plugin.preferences import PreferenceManagerProtocol
 
     class CompliantPref:
-        def load(self): pass
-        def save(self): pass
-        def set(self, k, v): pass
-        def get(self, k, d=None): pass
-        def has(self, k): return True
-        def clear(self): pass
+        def load(self):
+            pass
+
+        def save(self):
+            pass
+
+        def set(self, k, v):
+            pass
+
+        def get(self, k, d=None):
+            pass
+
+        def has(self, k):
+            return True
+
+        def clear(self):
+            pass
 
     p = CompliantPref()
     assert isinstance(p, PreferenceManagerProtocol)
@@ -457,13 +483,19 @@ def test_plugin_base_coverage_extensions():
     from biopro_sdk.plugin.state import PluginState
 
     class SimpleState(PluginState):
-        def to_dict(self): return {}
+        def to_dict(self):
+            return {}
+
         @classmethod
-        def from_dict(cls, d): return cls()
+        def from_dict(cls, d):
+            return cls()
 
     class SimplePlugin(PluginBase):
-        def get_state(self): return SimpleState()
-        def set_state(self, s): pass
+        def get_state(self):
+            return SimpleState()
+
+        def set_state(self, s):
+            pass
 
     plugin = SimplePlugin("simple_plugin")
 
@@ -493,7 +525,7 @@ def test_plugin_base_coverage_extensions():
     # 1. Direct Abstract base methods cover
     PluginBase.get_state(None)
     PluginBase.set_state(None, None)
-    AnalysisBase.run(None, None) # Covers the 'pass' in AnalysisBase.run
+    AnalysisBase.run(None, None)  # Covers the 'pass' in AnalysisBase.run
 
     # 2. Simulate C++ deletion during run() (triggers outer catch block deleted print)
     mock_run = MagicMock(side_effect=RuntimeError("wrapped C/C++ object has been deleted"))
@@ -527,6 +559,3 @@ def test_plugin_base_coverage_extensions():
     worker.run = MagicMock(side_effect=RuntimeError("normal error"))
     runnable = AnalysisRunnable(worker=worker)
     runnable.run()
-
-
-

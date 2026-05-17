@@ -1,5 +1,9 @@
 """UI Panel implementing a multi-step themed Guided Wizard."""
 
+from biopro_sdk.plugin import PluginBase, PluginState
+from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
+from biopro_sdk.plugin.dialogs import show_info
+from biopro_sdk.plugin.wizard import WizardPanel, WizardStep
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -9,11 +13,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from biopro_sdk.plugin import PluginBase, PluginState
-from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
-from biopro_sdk.plugin.dialogs import show_info
-from biopro_sdk.plugin.wizard import WizardPanel, WizardStep
 
 from .config import WizardSettings
 

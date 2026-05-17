@@ -102,30 +102,30 @@ from biopro_sdk.host.docs import get_panel_class_for_plugin
 
 def main():
     app = QApplication(sys.argv)
-    
+
     plugin_path = "examples/hello_world"
-    
+
     # 1. Verify cryptographic integrity before loading
     trust_manager = TrustManager()
     is_valid, reason = trust_manager.verify_plugin(plugin_path)
-    
+
     if not is_valid:
         print(f"ERROR: Plugin verification failed: {reason}")
         sys.exit(1)
-        
+
     print("SUCCESS: Cryptographic signature verified successfully!")
-    
+
     # 2. Dynamically resolve the plugin class
     panel_class = get_panel_class_for_plugin(plugin_path)
     panel = panel_class()
-    
+
     # 3. Mount in MainWindow and display
     window = QMainWindow()
     window.setWindowTitle("BioPro Plugin Simulator")
     window.setCentralWidget(panel)
     window.resize(600, 400)
     window.show()
-    
+
     sys.exit(app.exec())
 
 if __name__ == "__main__":

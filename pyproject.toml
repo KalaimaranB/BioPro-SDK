@@ -93,4 +93,3 @@ check_untyped_defs = false
 ignore_missing_imports = true
 disable_error_code = ["assignment", "union-attr", "call-arg", "no-any-return", "method-assign", "misc", "no-redef"]
 files = "src"
-

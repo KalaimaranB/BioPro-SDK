@@ -1,6 +1,6 @@
 # 🧠 Architectural Design & Deep Dives
 
-This document explains the core software engineering principles, design patterns, and cryptographic strategies that govern the **BioPro SDK**. 
+This document explains the core software engineering principles, design patterns, and cryptographic strategies that govern the **BioPro SDK**.
 
 ---
 

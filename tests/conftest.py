@@ -9,6 +9,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 # Global QApplication instance to prevent GC cleanup mid-session
 _qapp = None
 
+
 @pytest.fixture(scope="session", autouse=True)
 def qapp():
     """Ensure a global QApplication instance is initialized before executing PyQt6 tests."""

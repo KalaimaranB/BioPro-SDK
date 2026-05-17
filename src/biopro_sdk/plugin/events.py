@@ -57,9 +57,7 @@ class _EventBus(QObject):
                 except Exception as e:
                     import logging
 
-                    logging.getLogger(__name__).exception(
-                        f"Error in event subscriber for {topic}: {e}"
-                    )
+                    logging.getLogger(__name__).exception(f"Error in event subscriber for {topic}: {e}")
 
 
 class _EventBusProxy:

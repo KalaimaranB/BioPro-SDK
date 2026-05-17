@@ -1,6 +1,6 @@
 # 🧬 BioPro SDK: Developer Portal
 
-Welcome to the official developer portal and documentation site for the **BioPro Software Development Kit (SDK)**! 
+Welcome to the official developer portal and documentation site for the **BioPro Software Development Kit (SDK)**!
 
 BioPro SDK is a state-of-the-art, high-performance Python framework designed to build secure, multi-threaded, and theme-compliant scientific analysis plugins. It is engineered with robust cryptographic trust controls, decoupled UI/engine execution boundaries, and seamless thread pool delegation.
 

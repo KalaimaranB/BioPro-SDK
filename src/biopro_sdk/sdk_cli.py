@@ -143,9 +143,7 @@ class SDKCLI:
 
         # Check for Target Manifest
         if not manifest_file.exists():
-            print(
-                f"ERROR: No manifest.json found in '{p_dir}'. Are you in the right plugin folder?"
-            )
+            print(f"ERROR: No manifest.json found in '{p_dir}'. Are you in the right plugin folder?")
             return False
 
         try:
@@ -160,9 +158,7 @@ class SDKCLI:
             # 2. Calculate Integrity Hashes (Merkle-style)
             # Prune ignored directories to avoid over-inclusion (e.g. __pycache__)
             # We synchronize with the main TrustManager list
-            ignore_list = TrustManager.IGNORE_LIST.union(
-                {"signature.bin", "dev_cert.bin", "manifest.json", ".venv"}
-            )
+            ignore_list = TrustManager.IGNORE_LIST.union({"signature.bin", "dev_cert.bin", "manifest.json", ".venv"})
             hashes = {}
 
             for root, dirs, files in os.walk(p_dir):
@@ -252,6 +248,7 @@ class SDKCLI:
         try:
             # Use dynamic import to avoid squiggles in SDK-only environments
             import importlib
+
             biopro_core_sbom = importlib.import_module("biopro.core.sbom")
             generator = biopro_core_sbom.SBOMGenerator()
 
@@ -313,9 +310,7 @@ class SDKCLI:
                 # Validate ID formatting (lowercase, snake_case)
                 p_id = manifest.get("id", "")
                 if not p_id.islower() or not p_id.replace("_", "").isalnum():
-                    print(
-                        f"  ⚠️ WARN: Plugin ID '{p_id}' should be lowercase snake_case (e.g. 'my_plugin')."
-                    )
+                    print(f"  ⚠️ WARN: Plugin ID '{p_id}' should be lowercase snake_case (e.g. 'my_plugin').")
                     warnings += 1
                 else:
                     print(f"  ✅ PASS: Plugin ID '{p_id}' conforms to snake_case naming standards.")
@@ -325,18 +320,14 @@ class SDKCLI:
                 deps = manifest.get("dependencies")
                 if deps is not None:
                     if not isinstance(deps, dict):
-                        print(
-                            "  ❌ FAIL: 'dependencies' key in manifest.json must be a dictionary."
-                        )
+                        print("  ❌ FAIL: 'dependencies' key in manifest.json must be a dictionary.")
                         failed_checks += 1
                     else:
                         print("  📦 Auditing Plugin Dependencies:")
                         all_pinned = True
                         for dep_name, dep_ver in deps.items():
                             if not isinstance(dep_ver, str):
-                                print(
-                                    f"    ❌ FAIL: Dependency version for '{dep_name}' must be a string."
-                                )
+                                print(f"    ❌ FAIL: Dependency version for '{dep_name}' must be a string.")
                                 all_pinned = False
                                 failed_checks += 1
                             elif any(op in dep_ver for op in [">", "<", "=", "~", "^", "*"]):
@@ -346,9 +337,7 @@ class SDKCLI:
                                 all_pinned = False
                                 warnings += 1
                             else:
-                                print(
-                                    f"    ✅ PASS: '{dep_name}' is pinned to version '{dep_ver}'."
-                                )
+                                print(f"    ✅ PASS: '{dep_name}' is pinned to version '{dep_ver}'.")
                                 passed_checks += 1
                         if all_pinned and deps:
                             print("  ✅ PASS: All declared dependencies are securely pinned.")
@@ -411,9 +400,7 @@ class SDKCLI:
                 print("  ✅ PASS: Integrity hash block exists in manifest.")
                 passed_checks += 1
             else:
-                print(
-                    "  ❌ FAIL: Cryptographic signatures present, but manifest integrity block is missing."
-                )
+                print("  ❌ FAIL: Cryptographic signatures present, but manifest integrity block is missing.")
                 failed_checks += 1
 
         print("\n==========================================")
@@ -421,9 +408,7 @@ class SDKCLI:
         print(f"  Passed: {passed_checks} | Failed: {failed_checks} | Warnings: {warnings}")
         print("==========================================")
         if failed_checks > 0:
-            print(
-                "❌ STATUS: RED (Plugin has critical compliance issues. Please resolve before releasing.)\n"
-            )
+            print("❌ STATUS: RED (Plugin has critical compliance issues. Please resolve before releasing.)\n")
             return False
         elif warnings > 0:
             print(
@@ -455,7 +440,9 @@ def main():
 
     # Command: init-identity
     init_parser = subparsers.add_parser("init-identity", help="Bootstrap a local developer or project identity.")
-    init_parser.add_argument("--project", action="store_true", help="Run in CI/Project mode (skips local root cert gen).")
+    init_parser.add_argument(
+        "--project", action="store_true", help="Run in CI/Project mode (skips local root cert gen)."
+    )
 
     # Command: sign
     sign_parser = subparsers.add_parser("sign", help="Sign a plugin using the local developer identity.")
@@ -472,7 +459,9 @@ def main():
     sbom_group.add_argument("--markdown", action="store_true", help="Output SBOM in Markdown format (default).")
 
     # Command: evaluate
-    eval_parser = subparsers.add_parser("evaluate", help="Evaluate a plugin directory against BioPro QA, structure, and security standards.")
+    eval_parser = subparsers.add_parser(
+        "evaluate", help="Evaluate a plugin directory against BioPro QA, structure, and security standards."
+    )
     eval_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
 
     # Parse arguments

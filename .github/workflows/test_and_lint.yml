@@ -10,7 +10,7 @@ jobs:
   test-and-lint:
     name: Execute SDK Verification
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
