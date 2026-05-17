@@ -3,6 +3,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from biopro_sdk.sdk_cli import SDKCLI, main
 
 

@@ -11,25 +11,30 @@ repos:
       - id: trailing-whitespace
       - id: check-added-large-files
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
-    hooks:
-      - id: ruff
-        args: [ --fix ]
-      - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-requests, cryptography, PyQt6]
-        args: [ --ignore-missing-imports ]
-
   - repo: local
     hooks:
+      - id: ruff-lint
+        name: Ruff Linter (Auto-fix)
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: Ruff Formatter (Auto-format)
+        entry: uv run ruff format
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: Mypy Type Checker
+        entry: uv run mypy src
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: pytest
-        name: Run Unit Tests (Pytest)
-        entry: uv run pytest
+        name: Headless Unit Testing (Pytest)
+        entry: env QT_QPA_PLATFORM=offscreen PYTHONPATH=src uv run pytest
         language: system
         pass_filenames: false
         always_run: true

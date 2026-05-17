@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PyQt6.QtWidgets import QMessageBox, QWidget
+
 from biopro_sdk.plugin.analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from biopro_sdk.plugin.components import (
     DangerButton,
@@ -36,7 +38,6 @@ from biopro_sdk.plugin.validation import (
     validate_value_range,
 )
 from biopro_sdk.plugin.wizard import StepIndicator, WizardPanel, WizardStep
-from PyQt6.QtWidgets import QMessageBox, QWidget
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. UI COMPONENTS TESTS

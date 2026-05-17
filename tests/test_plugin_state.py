@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from biopro_sdk.plugin.base import PluginBase
 from biopro_sdk.plugin.state import PluginState
 

@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+
 from biopro_sdk.host.ai import AIAssistant, AIServerManager
 
 

@@ -1,8 +1,5 @@
 """UI Panel implementing thread orchestration for background simulations."""
 
-from biopro_sdk.plugin import PluginBase
-from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
-from biopro_sdk.plugin.logging import get_logger
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -12,6 +9,10 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
 )
+
+from biopro_sdk.plugin import PluginBase
+from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
+from biopro_sdk.plugin.logging import get_logger
 
 from .engine import SimulationEngine
 from .state import CalculationState

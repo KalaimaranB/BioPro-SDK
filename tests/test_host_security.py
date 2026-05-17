@@ -4,14 +4,15 @@ import os
 from unittest.mock import patch
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519
+
 from biopro_sdk.host.docs import PluginDocumentation
 from biopro_sdk.host.sign_plugin import sign_plugin
 from biopro_sdk.host.trust_manager import TrustManager
 from biopro_sdk.host.trust_overrides import LocalTrustRegistry
 from biopro_sdk.host.trust_path import TrustChain, TrustLink
 from biopro_sdk.host.trust_storage import TrustCache
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
 
 
 @pytest.fixture
