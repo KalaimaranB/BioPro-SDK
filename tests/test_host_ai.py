@@ -113,7 +113,7 @@ def test_ai_server_launches_new_subprocess(mock_run, mock_popen, mock_socket, mo
 @patch("requests.post")
 def test_ai_assistant_ask_question_non_stream(mock_post, temp_ai_env, tmp_path):
     """Test AIAssistant non-streaming responses and context gatherers."""
-    _, biopro_dir = temp_sec_env = temp_ai_env
+    _, biopro_dir = temp_ai_env
 
     # Create mock user guides to test document contextualizer
     docs_dir = tmp_path / "docs"

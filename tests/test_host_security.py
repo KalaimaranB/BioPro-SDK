@@ -247,7 +247,7 @@ def test_plugin_documentation():
 
 def test_plugin_signer_missing_files(tmp_path):
     """Test sign_plugin error handling on missing target manifest or keys."""
-    with pytest.raises(Exception):
+    with pytest.raises(FileNotFoundError):
         sign_plugin(tmp_path, tmp_path / "key.pem", tmp_path / "cert.bin")
 
 
