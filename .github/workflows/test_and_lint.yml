@@ -8,8 +8,12 @@ on:
 
 jobs:
   test-and-lint:
-    name: Execute SDK Verification
-    runs-on: ubuntu-latest
+    name: Execute SDK Verification on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+      fail-fast: false
 
     steps:
       - name: Checkout Code
@@ -20,10 +24,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
 
       - name: Set up virtual environment and sync dependencies
         run: |
