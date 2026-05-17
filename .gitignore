@@ -38,8 +38,23 @@ env/
 *.swp
 .DS_Store
 
+# Testing & Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Cache directories
+.mypy_cache/
+.ruff_cache/
+
+# Built documentation
+site/
+
 # BioPro Local Keys (NEVER commit developer private keys!)
 *.pem
 *.key
 dev_private_key.pem
 dev_cert.bin
+
