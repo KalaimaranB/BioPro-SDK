@@ -113,7 +113,9 @@ class AIServerManager:
             self.ai_log_path = Path.home() / ".biopro" / "ai_server.log"
             self.ai_log_file = open(self.ai_log_path, "w")  # noqa: SIM115
 
-            self._process = subprocess.Popen(cmd, stdout=self.ai_log_file, stderr=self.ai_log_file, text=True)
+            self._process = subprocess.Popen(
+                cmd, stdout=self.ai_log_file, stderr=self.ai_log_file, text=True
+            )
 
             # Polling loop
             for _ in range(30):
@@ -208,7 +210,9 @@ class AIAssistant:
 
         # Gather context and tracking sources
         context, sources = self._gather_context(prompt, plugin_id, include_core, selected_files)
-        self.logger.debug(f"Gathered {len(context or '')} bytes of context from {len(sources)} sources.")
+        self.logger.debug(
+            f"Gathered {len(context or '')} bytes of context from {len(sources)} sources."
+        )
 
         # 1. Load the "Soul" (User customization)
         soul_content = ""
@@ -348,7 +352,9 @@ class AIAssistant:
         if discover_only:
             metadata = []
             for f, t in discovered_files:
-                metadata.append({"name": f.name, "type": t, "size": f.stat().st_size if f.exists() else 0})
+                metadata.append(
+                    {"name": f.name, "type": t, "size": f.stat().st_size if f.exists() else 0}
+                )
             return None, metadata
 
         # Filter by selection if provided

@@ -22,7 +22,6 @@ from PyQt6.QtWidgets import (
 try:
     from biopro.ui.theme import Colors, Fonts, theme_manager
 except ImportError:
-
     class FallbackColors:
         ACCENT_PRIMARY = "#007ACC"
         BG_DARKEST = "#121212"
@@ -49,11 +48,8 @@ except ImportError:
 
     class MockThemeManager:
         class MockSignal:
-            def connect(self, callback):
-                pass
-
+            def connect(self, callback): pass
         theme_changed = MockSignal()
-
     theme_manager = MockThemeManager()
 
 
@@ -154,12 +150,15 @@ class StepIndicator(QWidget):
             if i < idx:
                 circle.setText("✓")
                 circle.setStyleSheet(self._circle_css(False, True))
-                text.setStyleSheet(f"font-size: {Fonts.SIZE_SMALL}px; color: {Colors.ACCENT_SUCCESS};")
+                text.setStyleSheet(
+                    f"font-size: {Fonts.SIZE_SMALL}px; color: {Colors.ACCENT_SUCCESS};"
+                )
             elif i == idx:
                 circle.setText(str(i + 1))
                 circle.setStyleSheet(self._circle_css(True, False))
                 text.setStyleSheet(
-                    f"font-size: {Fonts.SIZE_SMALL}px; font-weight: 700; color: {Colors.ACCENT_PRIMARY};"
+                    f"font-size: {Fonts.SIZE_SMALL}px; font-weight: 700;"
+                    f" color: {Colors.ACCENT_PRIMARY};"
                 )
             else:
                 circle.setText(str(i + 1))
@@ -378,7 +377,9 @@ class WizardPanel(QWidget):
 
     def _apply_theme_styles(self) -> None:
         """Reapply theme-aware styles to the wizard panel widgets."""
-        self.setStyleSheet(f"QWidget {{ background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; }}")
+        self.setStyleSheet(
+            f"QWidget {{ background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY}; }}"
+        )
         self._btn_back.setStyleSheet(
             f"QPushButton {{ background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY}; border: 1px solid {Colors.BORDER}; border-radius: 6px; padding: 10px 14px; }}"
             f"QPushButton:hover {{ background: {Colors.BG_LIGHT}; }}"
@@ -397,7 +398,7 @@ class WizardPanel(QWidget):
                 widget.refresh_styles()
 
             # Explicitly refresh any labels or frames that might be using cached theme colors
-            if isinstance(widget, QLabel | QFrame):
+            if isinstance(widget, (QLabel, QFrame)):
                 widget.update()
 
     def go_back(self) -> None:

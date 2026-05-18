@@ -115,7 +115,9 @@ class AnalysisWorker(QObject):
     progress = pyqtSignal(int)  # Emitted with 0-100 progress value
     cancelled = pyqtSignal()  # Emitted if analysis was cancelled
 
-    def __init__(self, analyzer: AnalysisBase, state: PluginState | None, parent: QObject | None = None):
+    def __init__(
+        self, analyzer: AnalysisBase, state: PluginState | None, parent: QObject | None = None
+    ):
         """Initialize the worker.
 
         Args:
@@ -151,7 +153,9 @@ class AnalysisWorker(QObject):
                     self.finished.emit(results)
             except RuntimeError as e:
                 if "deleted" in str(e):
-                    logger.debug("AnalysisWorker: Cannot emit finished/cancelled; object already deleted.")
+                    logger.debug(
+                        "AnalysisWorker: Cannot emit finished/cancelled; object already deleted."
+                    )
                 else:
                     raise
 

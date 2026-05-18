@@ -1,254 +1,66 @@
 """SDK CLI Utilities for BioPro developers.
 
-Handles developer identity setup, plugin signing, and manifest generation.
+Handles developer identity setup, plugin signing, manifest generation, and compliance evaluation.
 """
 
 import argparse
-import hashlib
 import json
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import cast
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
-
-logger = logging.getLogger(__name__)
+from biopro_sdk.host.sign_plugin import PluginSigner
 
 
 class SDKCLI:
     """CLI handler for BioPro SDK operations."""
 
     def __init__(self):
-        """Initialize the SDK CLI environment, setting default home paths."""
-        self.biopro_dir = Path.home() / ".biopro"
-        self.trusted_roots_dir = self.biopro_dir / "trusted_roots"
+        self.signer = PluginSigner()
 
-    def init_identity(self, is_project: bool = False) -> bool:
-        """Bootstrap a local developer or project identity.
-
-        Args:
-            is_project: If True, run in Project (CI) mode — skips local root
-                        generation and instead validates that a signing key already
-                        exists at ~/.biopro/dev_private_key.pem (injected by CI secrets).
-
-        Returns:
-            bool: True if identity is successfully initialized/loaded, False otherwise.
-        """
-        self.biopro_dir.mkdir(parents=True, exist_ok=True)
-        self.trusted_roots_dir.mkdir(parents=True, exist_ok=True)
-
-        if is_project:
-            # ── CI / Project Key Mode ──────────────────────────────────────
-            print("--- BioPro Project Identity Setup (CI Mode) ---")
-            priv_file = self.biopro_dir / "dev_private_key.pem"
-            if not priv_file.exists():
-                print("ERROR: No project key found at ~/.biopro/dev_private_key.pem")
-                print("       Set the BIOPRO_PROJECT_PRIVATE_KEY GitHub Secret and ensure")
-                print("       the CI workflow has written it to that path before calling this.")
-                return False
-
-            # Derive the public key from the existing private key and write the cert
-            try:
-                with open(priv_file, "rb") as f:
-                    loaded_key = serialization.load_ssh_private_key(f.read(), password=None)
-                    dev_private = cast(ed25519.Ed25519PrivateKey, loaded_key)
-
-                dev_pub_raw = dev_private.public_key().public_bytes(
-                    encoding=serialization.Encoding.Raw,
-                    format=serialization.PublicFormat.Raw,
-                )
-
-                # Self-sign cert stub (root signature is in the trust_chain.json)
-                cert_file = self.biopro_dir / "dev_cert.bin"
-                stub_sig = dev_private.sign(dev_pub_raw)  # self-signed stub for local tooling
-                with open(cert_file, "wb") as f:
-                    f.write(dev_pub_raw + stub_sig)
-
-                print(f"Project key loaded from:      {priv_file}")
-                print(f"Project cert stub written to: {cert_file}")
-                print("\nSUCCESS: Project identity ready. Use 'biopro-sdk sign <plugin_dir>' to sign.")
-                return True
-            except Exception as e:
-                print(f"ERROR: Failed to load project key: {e}")
-                return False
-
-        # ── Developer / Local Mode ─────────────────────────────────────────
+    def init_identity(self) -> bool:
+        """Bootstrap a local developer or project identity."""
         try:
-            print("--- BioPro Developer Identity Setup ---")
-
-            # 1. Generate a local onboarding root (trusts this machine's work locally)
-            root_private = ed25519.Ed25519PrivateKey.generate()
-            root_public = root_private.public_key()
-
-            root_pub_file = self.trusted_roots_dir / "onboarding_root.pub"
-            root_pub_bytes = root_public.public_bytes(
-                encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-            )
-            with open(root_pub_file, "wb") as f:
-                f.write(root_pub_bytes)
-            print(f"Created Local Trust Root: {root_pub_file}")
-
-            # 2. Generate developer keypair
-            dev_private = ed25519.Ed25519PrivateKey.generate()
-            dev_public = dev_private.public_key()
-
-            dev_priv_file = self.biopro_dir / "dev_private_key.pem"
-            dev_priv_bytes = dev_private.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.OpenSSH,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
-            with open(dev_priv_file, "wb") as f:
-                f.write(dev_priv_bytes)
-            print(f"Created Developer Private Key: {dev_priv_file}")
-
-            # 3. Create dev_cert.bin (self-signed by local onboarding root)
-            dev_pub_raw = dev_public.public_bytes(
-                encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-            )
-            signature = root_private.sign(dev_pub_raw)
-            cert_file = self.biopro_dir / "dev_cert.bin"
-            with open(cert_file, "wb") as f:
-                f.write(dev_pub_raw + signature)
-
-            print(f"Created Developer Certificate: {cert_file}")
-            print("\nSUCCESS: Your local machine now trusts plugins signed with this identity.")
+            self.signer.init_identity()
+            print("\nSUCCESS: Developer identity initialized.")
             print("Use 'biopro-sdk sign <plugin_dir>' to sign your work.")
-            print("Run 'biopro-sdk evaluate <plugin_dir>' to validate compliance before a PR.")
             return True
         except Exception as e:
             print(f"ERROR: Failed to initialize developer identity: {e}")
             return False
 
     def sign_plugin(self, plugin_dir: str) -> bool:
-        """Sign a plugin using the local developer identity.
-
-        Returns:
-            bool: True if plugin is successfully signed, False otherwise.
-        """
-        from biopro_sdk.host import TrustManager
-
-        p_dir = Path(plugin_dir)
-        cert_file = self.biopro_dir / "dev_cert.bin"
-        priv_file = self.biopro_dir / "dev_private_key.pem"
-        manifest_file = p_dir / "manifest.json"
-
-        # Check for Identity first
-        if not cert_file.exists() or not priv_file.exists():
-            print("ERROR: Developer identity not found. Run 'biopro-sdk init-identity' first.")
-            return False
-
-        # Check for Target Manifest
-        if not manifest_file.exists():
-            print(f"ERROR: No manifest.json found in '{p_dir}'. Are you in the right plugin folder?")
-            return False
-
+        """Sign a plugin using the local developer identity."""
         try:
-            # 1. Load Keys
-            with open(priv_file, "rb") as f:
-                loaded_key = serialization.load_ssh_private_key(f.read(), password=None)
-                dev_private = cast(ed25519.Ed25519PrivateKey, loaded_key)
-
-            with open(manifest_file) as f:
-                manifest = json.load(f)
-
-            # 2. Calculate Integrity Hashes (Merkle-style)
-            # Prune ignored directories to avoid over-inclusion (e.g. __pycache__)
-            # We synchronize with the main TrustManager list
-            ignore_list = TrustManager.IGNORE_LIST.union({"signature.bin", "dev_cert.bin", "manifest.json", ".venv"})
-            hashes = {}
-
-            for root, dirs, files in os.walk(p_dir):
-                # Prune directories in-place to skip them entirely
-                dirs[:] = [d for d in dirs if d not in ignore_list]
-
-                for file in files:
-                    if file in ignore_list:
-                        continue
-                    rel_path = os.path.relpath(os.path.join(root, file), p_dir)
-
-                    hasher = hashlib.sha256()
-                    with open(os.path.join(root, file), "rb") as f:
-                        for chunk in iter(lambda: f.read(4096), b""):
-                            hasher.update(chunk)
-                    hashes[rel_path] = hasher.hexdigest()
-
-            # 3. Update Manifest to V2 Schema
-            if "integrity" not in manifest:
-                manifest["integrity"] = {}
-            manifest["integrity"]["hashes"] = hashes
-
-            # Auto-migrate to V2 if needed
-            manifest["manifest_version"] = 2
-            if "signed_by" not in manifest:
-                manifest["signed_by"] = {"entity_type": "developer", "entity_id": "local_dev"}
-            if "authors" not in manifest and "author" in manifest:
-                manifest["authors"] = [{"name": manifest.pop("author")}]
-            elif "authors" not in manifest:
-                manifest["authors"] = [{"name": "Local Developer"}]
-
-            with open(manifest_file, "w") as f:
-                json.dump(manifest, f, indent=4)
-
-            # 4. Sign the Canonicalized Manifest
-            manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
-            signature = dev_private.sign(manifest_bytes)
-
-            # 5. Write artifacts to plugin folder
-            with open(p_dir / "signature.bin", "wb") as f:
-                f.write(signature)
-
-            import shutil
-
-            shutil.copy(cert_file, p_dir / "dev_cert.bin")
-
-            print(f"Successfully signed plugin: {manifest.get('id', p_dir.name)}")
+            self.signer.sign_plugin(Path(plugin_dir))
             return True
         except Exception as e:
             print(f"ERROR: Failed to sign plugin: {e}")
             return False
 
-    def sign_all(self, parent_dir: str) -> bool:
-        """Batch sign all valid plugins in a parent directory.
-
-        Returns:
-            bool: True if parent directory is scanned, regardless of individual plugin success.
-                  False if parent directory does not exist or is invalid.
-        """
-        p_dir = Path(parent_dir)
-        if not p_dir.is_dir():
-            print(f"ERROR: '{p_dir}' is not a directory.")
+    def project_sign_plugin(self, plugin_dir: str, project_private_key_pem: bytes) -> bool:
+        """Co-sign a plugin's security ledger as the institutional Project CI runner."""
+        try:
+            self.signer.project_sign_plugin(Path(plugin_dir), project_private_key_pem)
+            return True
+        except Exception as e:
+            print(f"ERROR: Project signing failed: {e}")
             return False
 
-        print(f"--- Batch Signing: {p_dir} ---")
-        signed_count = 0
-        total_plugins = 0
-        for sub in p_dir.iterdir():
-            if sub.is_dir() and (sub / "manifest.json").exists():
-                total_plugins += 1
-                print(f"Signing {sub.name}...")
-                try:
-                    if self.sign_plugin(str(sub)):
-                        signed_count += 1
-                except Exception as e:
-                    print(f"  FAILED: {e}")
-
-        print(f"--- Batch Complete: Signed {signed_count} out of {total_plugins} modules ---")
-        return True
+    def print_registry_entry(self) -> bool:
+        """Export the JSON snippet for the central registry."""
+        try:
+            self.signer.print_registry_entry()
+            return True
+        except Exception as e:
+            print(f"ERROR: Failed to fetch registry entry: {e}")
+            return False
 
     def generate_sbom(self, output_format: str) -> bool:
-        """Generates and prints the SBOM in the specified format.
-
-        Returns:
-            bool: True if generator is successfully called, False if not inside BioPro core.
-        """
+        """Generates and prints the SBOM in the specified format."""
         try:
-            # Use dynamic import to avoid squiggles in SDK-only environments
             import importlib
-
             biopro_core_sbom = importlib.import_module("biopro.core.sbom")
             generator = biopro_core_sbom.SBOMGenerator()
 
@@ -261,12 +73,120 @@ class SDKCLI:
             print("ERROR: SBOM generation is only supported when running inside the BioPro main application.")
             return False
 
-    def evaluate_plugin(self, plugin_dir: str) -> bool:
-        """Evaluate a plugin directory against BioPro QA, structure, and security standards.
+    def create_manifest(self, plugin_dir: str, id_arg: str | None = None, name_arg: str | None = None, version_arg: str | None = None, description_arg: str | None = None) -> bool:
+        """Interactive/Scriptable bootstrapping for a V2 manifest.json."""
+        p_dir = Path(plugin_dir)
+        p_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = p_dir / "manifest.json"
+        
+        if manifest_path.exists():
+            print(f"⚠️  manifest.json already exists at {manifest_path}. Aborting to prevent overwrite.")
+            return False
 
-        Returns:
-            bool: True if the plugin evaluation passes with 0 critical failures, False otherwise.
-        """
+        # Gather inputs or default
+        p_id = id_arg or p_dir.name.lower().replace("-", "_").replace(" ", "_")
+        p_name = name_arg or p_dir.name.title()
+        p_version = version_arg or "1.0.0"
+        p_description = description_arg or f"A high-performance BioPro data plugin analyzing {p_name}."
+
+        manifest_data = {
+            "manifest_version": 2,
+            "id": p_id,
+            "name": p_name,
+            "version": p_version,
+            "description": p_description,
+            "authors": [
+                {
+                    "name": "Developer Name",
+                    "role": "Developer",
+                    "permissions": ["read_workspace", "write_assets"]
+                }
+            ],
+            "custom_exclusions": []
+        }
+
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest_data, f, indent=4)
+
+        print(f"🎉 Successfully created V2 manifest at: {manifest_path}")
+        print(json.dumps(manifest_data, indent=4))
+        return True
+
+    def bootstrap_plugin(self, plugin_dir: str) -> bool:
+        """Create a complete boilerplate plugin skeleton with documentation and source template."""
+        p_dir = Path(plugin_dir)
+        p_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 1. Create subfolders
+        (p_dir / "src").mkdir(parents=True, exist_ok=True)
+        (p_dir / "docs").mkdir(parents=True, exist_ok=True)
+        
+        # 2. Create manifest.json
+        self.create_manifest(
+            str(p_dir),
+            id_arg=p_dir.name.lower().replace("-", "_").replace(" ", "_"),
+            name_arg=p_dir.name.title(),
+        )
+
+        # 3. Create a clean __init__.py boilerplate implementing AnalysisBase
+        init_file = p_dir / "src" / "__init__.py"
+        init_content = """from biopro_sdk.plugin import AnalysisBase
+
+class CustomAnalysisPlugin(AnalysisBase):
+    \"\"\"Boilerplate analysis plugin demonstrating safe SDK interaction.\"\"\"
+
+    def execute(self, workspace_context):
+        \"\"\"Executes primary data processing workflow.
+
+        Args:
+            workspace_context: The host application environment and loaded data assets.
+        \"\"\"
+        self.logger.info("Executing custom boilerplate analysis workflow...")
+        
+        # Access workspace variables
+        assets = workspace_context.get_assets()
+        self.logger.info(f"Loaded {len(assets)} raw assets in current workspace.")
+        
+        # Complete work and publish progress
+        self.publish_progress(100, "Boilerplate execution completed.")
+        return {"status": "success", "processed_assets": len(assets)}
+"""
+        with open(init_file, "w", encoding="utf-8") as f:
+            f.write(init_content)
+
+        # 4. Create a README.md inside docs/
+        readme_file = p_dir / "docs" / "01_getting_started.md"
+        readme_content = f"""# Getting Started with {p_dir.name.title()}
+
+Welcome to your freshly bootstrapped BioPro plugin!
+
+## Architecture
+This plugin is developed using the BioPro-SDK. It exposes a single data analysis pipeline extending `AnalysisBase`.
+
+## Getting Started
+1. Edit `src/__init__.py` to implement your custom data algorithms.
+2. Maintain your documentation under the `docs/` folder for local integration with the BioPro Help Center.
+3. Sign your plugin before loading using:
+   ```bash
+   biopro-sdk sign .
+   ```
+"""
+        with open(readme_file, "w", encoding="utf-8") as f:
+            f.write(readme_content)
+
+        print(f"\n🚀 Successfully bootstrapped boilerplate plugin at: {p_dir}")
+        print("Structure Created:")
+        print("  ├── manifest.json")
+        print("  ├── src/")
+        print("  │   └── __init__.py  (Core plugin logic)")
+        print("  └── docs/")
+        print("      └── 01_getting_started.md (Documentation)")
+        print("\nGet started by running:")
+        print(f"  cd \"{p_dir}\" && biopro-sdk init-identity && biopro-sdk sign .")
+        return True
+
+    def evaluate_plugin(self, plugin_dir: str) -> bool:
+        """Evaluate a plugin directory against BioPro QA, structure, and security standards."""
         p_dir = Path(plugin_dir)
         if not p_dir.is_dir():
             print(f"ERROR: '{p_dir}' is not a valid directory.")
@@ -295,7 +215,7 @@ class SDKCLI:
                 passed_checks += 1
 
                 # Check required fields for V2 schema
-                required_keys = ["id", "name", "version", "description", "authors", "signed_by"]
+                required_keys = ["id", "name", "version", "description", "authors"]
                 missing_keys = [k for k in required_keys if k not in manifest]
                 if missing_keys:
                     print(f"  ❌ FAIL: Missing required V2 manifest keys: {missing_keys}")
@@ -315,33 +235,6 @@ class SDKCLI:
                 else:
                     print(f"  ✅ PASS: Plugin ID '{p_id}' conforms to snake_case naming standards.")
                     passed_checks += 1
-
-                # Validate Dependencies block if present
-                deps = manifest.get("dependencies")
-                if deps is not None:
-                    if not isinstance(deps, dict):
-                        print("  ❌ FAIL: 'dependencies' key in manifest.json must be a dictionary.")
-                        failed_checks += 1
-                    else:
-                        print("  📦 Auditing Plugin Dependencies:")
-                        all_pinned = True
-                        for dep_name, dep_ver in deps.items():
-                            if not isinstance(dep_ver, str):
-                                print(f"    ❌ FAIL: Dependency version for '{dep_name}' must be a string.")
-                                all_pinned = False
-                                failed_checks += 1
-                            elif any(op in dep_ver for op in [">", "<", "=", "~", "^", "*"]):
-                                print(
-                                    f"    ⚠️ WARN: Dependency '{dep_name}': '{dep_ver}' is not pinned. Recommend exact pinning for maintenance."
-                                )
-                                all_pinned = False
-                                warnings += 1
-                            else:
-                                print(f"    ✅ PASS: '{dep_name}' is pinned to version '{dep_ver}'.")
-                                passed_checks += 1
-                        if all_pinned and deps:
-                            print("  ✅ PASS: All declared dependencies are securely pinned.")
-                            passed_checks += 1
 
             except Exception as e:
                 print(f"  ❌ FAIL: Failed to parse manifest.json: {e}")
@@ -375,9 +268,7 @@ class SDKCLI:
                 print("  ✅ PASS: Integrates correctly with BioPro SDK classes (AnalysisBase).")
                 passed_checks += 1
             else:
-                print(
-                    "  ⚠️ WARN: No references to 'AnalysisBase' found. Ensure your plugin implements the core analysis interface."
-                )
+                print("  ⚠️ WARN: No references to 'AnalysisBase' found. Ensure your plugin implements the core analysis interface.")
                 warnings += 1
 
         print()
@@ -385,23 +276,34 @@ class SDKCLI:
         # --- 3. TRUST & SIGNING AUDIT ---
         print("[3/3] Security & Trust Audit:")
         sig_file = p_dir / "signature.bin"
-        cert_file = p_dir / "dev_cert.bin"
+        security_file = p_dir / "security.json"
+        trust_file = p_dir / "trust_chain.json"
 
-        if not sig_file.exists() or not cert_file.exists():
-            print("  ⚠️ WARN: Plugin is currently unsigned (missing signature.bin or dev_cert.bin).")
+        if not sig_file.exists() or not security_file.exists() or not trust_file.exists():
+            print("  ⚠️ WARN: Plugin is currently unsigned or missing cryptography files.")
             print("    Run 'biopro-sdk sign <plugin_dir>' to secure your plugin.")
             warnings += 1
         else:
-            print("  ✅ PASS: Cryptographic signatures are present.")
+            print("  ✅ PASS: Cryptographic signatures and split-manifest ledger are present.")
             passed_checks += 1
 
-            # Check integrity hashes
-            if manifest and "integrity" in manifest and "hashes" in manifest["integrity"]:
-                print("  ✅ PASS: Integrity hash block exists in manifest.")
+        # --- 4. DEPENDENCY AUDIT ---
+        dependencies = manifest.get("dependencies") if manifest else None
+        if dependencies:
+            print()
+            print("Auditing Plugin Dependencies:")
+            has_unpinned = False
+            for dep, ver in dependencies.items():
+                if ver.startswith(">") or ver.startswith("<") or ver.startswith("^") or ver.startswith("~"):
+                    print(f"  ❌ FAIL: Dependency '{dep}' is not pinned. Recommend exact pinning (e.g., '{dep}': '1.0.0').")
+                    has_unpinned = True
+                    failed_checks += 1
+                else:
+                    print(f"  ✅ PASS: Dependency '{dep}' is pinned to version '{ver}'.")
+                    passed_checks += 1
+            if not has_unpinned:
+                print("  ✅ PASS: All declared dependencies are securely pinned.")
                 passed_checks += 1
-            else:
-                print("  ❌ FAIL: Cryptographic signatures present, but manifest integrity block is missing.")
-                failed_checks += 1
 
         print("\n==========================================")
         print("Evaluation Complete:")
@@ -411,9 +313,7 @@ class SDKCLI:
             print("❌ STATUS: RED (Plugin has critical compliance issues. Please resolve before releasing.)\n")
             return False
         elif warnings > 0:
-            print(
-                "⚠️ STATUS: YELLOW (Plugin is functional but has warnings. Recommended to address before releasing.)\n"
-            )
+            print("⚠️ STATUS: YELLOW (Plugin is functional but has warnings. Recommended to address before releasing.)\n")
             return True
         else:
             print("✅ STATUS: GREEN (Plugin is fully compliant and ready for release!)\n")
@@ -423,8 +323,6 @@ class SDKCLI:
 def main():
     """Main CLI execution entry point mapping command subparsers to CLI actions."""
     # ── Legacy Compatibility Shim ───────────────────────────────────
-    # If the user types: 'biopro-sdk sdk init-identity', we transparently
-    # pop the 'sdk' word and warn the user.
     args_list = sys.argv[1:]
     if args_list and args_list[0] == "sdk":
         print("⚠️  DEPRECATION WARNING: Running with 'sdk' prefix is deprecated.", file=sys.stderr)
@@ -439,18 +337,35 @@ def main():
     subparsers = parser.add_subparsers(dest="command", required=True, help="SDK Commands")
 
     # Command: init-identity
-    init_parser = subparsers.add_parser("init-identity", help="Bootstrap a local developer or project identity.")
-    init_parser.add_argument(
-        "--project", action="store_true", help="Run in CI/Project mode (skips local root cert gen)."
-    )
+    subparsers.add_parser("init-identity", help="Bootstrap a local developer or project identity.")
 
     # Command: sign
     sign_parser = subparsers.add_parser("sign", help="Sign a plugin using the local developer identity.")
     sign_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
 
-    # Command: sign-all
-    sign_all_parser = subparsers.add_parser("sign-all", help="Batch sign all valid plugins in a parent directory.")
-    sign_all_parser.add_argument("parent_dir", type=str, help="Path to the parent directory containing plugins.")
+    # Command: project-sign
+    proj_parser = subparsers.add_parser("project-sign", help="Co-sign a plugin's security ledger as the Project CI runner.")
+    proj_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
+    proj_parser.add_argument(
+        "--key-env",
+        default="BIOPRO_PROJECT_PRIVATE_KEY",
+        help="Environment variable containing Project private key PEM (default: BIOPRO_PROJECT_PRIVATE_KEY)",
+    )
+
+    # Command: registry
+    subparsers.add_parser("registry", help="Export the JSON snippet for the central registry.")
+
+    # Command: create-manifest
+    manifest_parser = subparsers.add_parser("create-manifest", help="Bootstraps a fresh manifest.json for a plugin.")
+    manifest_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
+    manifest_parser.add_argument("--id", type=str, help="Custom plugin ID (snake_case).")
+    manifest_parser.add_argument("--name", type=str, help="Custom plugin display name.")
+    manifest_parser.add_argument("--version", type=str, help="Custom plugin version.")
+    manifest_parser.add_argument("--desc", type=str, help="Custom plugin description.")
+
+    # Command: bootstrap
+    boot_parser = subparsers.add_parser("bootstrap", help="Create a boilerplate plugin skeleton.")
+    boot_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
 
     # Command: sbom
     sbom_parser = subparsers.add_parser("sbom", help="Generate and print the SBOM for dependency tracking.")
@@ -473,15 +388,38 @@ def main():
 
     try:
         if args.command == "init-identity":
-            success = cli.init_identity(is_project=args.project)
+            success = cli.init_identity()
             if not success:
                 exit_code = 1
         elif args.command == "sign":
             success = cli.sign_plugin(args.plugin_dir)
             if not success:
                 exit_code = 1
-        elif args.command == "sign-all":
-            success = cli.sign_all(args.parent_dir)
+        elif args.command == "project-sign":
+            pem_str = os.environ.get(args.key_env)
+            if not pem_str:
+                print(f"ERROR: Project signing key not found in environment: {args.key_env}", file=sys.stderr)
+                exit_code = 1
+            else:
+                success = cli.project_sign_plugin(args.plugin_dir, pem_str.encode("utf-8"))
+                if not success:
+                    exit_code = 1
+        elif args.command == "registry":
+            success = cli.print_registry_entry()
+            if not success:
+                exit_code = 1
+        elif args.command == "create-manifest":
+            success = cli.create_manifest(
+                args.plugin_dir,
+                id_arg=args.id,
+                name_arg=args.name,
+                version_arg=args.version,
+                description_arg=args.desc
+            )
+            if not success:
+                exit_code = 1
+        elif args.command == "bootstrap":
+            success = cli.bootstrap_plugin(args.plugin_dir)
             if not success:
                 exit_code = 1
         elif args.command == "sbom":

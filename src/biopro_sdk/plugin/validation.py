@@ -47,7 +47,9 @@ def validate_directory_exists(path: str) -> tuple[bool, str]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def validate_value_range(value: float, min_val: float, max_val: float, name: str = "value") -> tuple[bool, str]:
+def validate_value_range(
+    value: float, min_val: float, max_val: float, name: str = "value"
+) -> tuple[bool, str]:
     """Check if value is within range.
 
     Args:
