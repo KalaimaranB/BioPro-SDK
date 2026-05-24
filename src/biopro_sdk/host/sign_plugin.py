@@ -127,11 +127,7 @@ class PluginSigner:
 
         # Save Public Key (Raw Bytes for the Registry)
         with open(self.public_key_path, "wb") as f:
-            f.write(
-                public_key.public_bytes(
-                    encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-                )
-            )
+            f.write(public_key.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw))
 
         logger.info("Identity generated successfully.")
         logger.info(f"Private Key: {self.private_key_path}")
@@ -154,8 +150,7 @@ class PluginSigner:
 
         manifest_file = plugin_path / "manifest.json"
         if not manifest_file.exists():
-            logger.error(f"manifest.json not found in {plugin_path}")
-            return
+            raise FileNotFoundError(f"manifest.json not found in {plugin_path}")
 
         # Parse & Validate manifest using new Split-Manifest strict rules
         parser = ManifestParser()
@@ -164,13 +159,11 @@ class PluginSigner:
                 manifest = json.load(f)
             parser.parse(manifest)
         except Exception as e:
-            logger.error(f"Failed manifest parsing: {e}")
-            return
+            raise ValueError(f"Failed manifest parsing: {e}") from e
 
         plugin_id = manifest.get("id")
         if not plugin_id or plugin_id != plugin_path.name:
-            logger.error("Plugin ID in manifest must match the folder name.")
-            return
+            raise ValueError("Plugin ID in manifest must match the folder name.")
 
         logger.info(f"Hashing files for {plugin_id}...")
         hashes = {}
@@ -204,9 +197,7 @@ class PluginSigner:
             json.dump(security_data, f, indent=4)
 
         # Sign security.json canonical bytes (preventing keys sorting/whitespaces variances)
-        canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(",", ":")).encode(
-            "utf-8"
-        )
+        canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(",", ":")).encode("utf-8")
         signature = private_key.sign(canonical_bytes)
 
         # Write signature.bin
@@ -214,9 +205,7 @@ class PluginSigner:
             f.write(signature)
 
         # Write trust_chain.json
-        pub_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
+        pub_bytes = public_key.public_bytes(encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw)
 
         authors = manifest.get("authors", [])
         dev_name = authors[0].get("name", "Unknown Developer") if authors else "Unknown Developer"
@@ -255,9 +244,7 @@ class PluginSigner:
         manifest_file = plugin_path / "manifest.json"
 
         if not security_file.exists() or not signature_file.exists() or not trust_file.exists():
-            logger.error(
-                "Developer signature (signature.bin) or security ledger is missing. Rejecting pipeline."
-            )
+            logger.error("Developer signature (signature.bin) or security ledger is missing. Rejecting pipeline.")
             return
 
         try:
@@ -277,9 +264,7 @@ class PluginSigner:
             dev_pub_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(dev_pub_hex))
 
             dev_sig = signature_file.read_bytes()
-            canonical_bytes = json.dumps(
-                security_data, sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")
+            canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(",", ":")).encode("utf-8")
             dev_pub_key.verify(dev_sig, canonical_bytes)
 
             # 4. Audit all file hashes to prevent post-signature developer tampering in pipeline
@@ -289,16 +274,12 @@ class PluginSigner:
                     raise SecurityValidationError(f"File {rel_path} integrity hash has changed.")
 
         except Exception as e:
-            logger.error(
-                f"Security validation failed before project-signing. Re-check file integrity. Error: {e}"
-            )
+            logger.error(f"Security validation failed before project-signing. Re-check file integrity. Error: {e}")
             return
 
         # 5. Load Project CI private key
         try:
-            project_private_key = serialization.load_pem_private_key(
-                project_private_key_pem, password=None
-            )
+            project_private_key = serialization.load_pem_private_key(project_private_key_pem, password=None)
             if not isinstance(project_private_key, ed25519.Ed25519PrivateKey):
                 raise TypeError("Project key is not a valid Ed25519PrivateKey")
         except Exception as e:
@@ -330,9 +311,7 @@ class PluginSigner:
 
         logger.info(f"Successfully applied Project signature to {security_data['plugin_id']}.")
 
-    def delegate_identity(
-        self, subject_pub_file: Path, subject_name: str, authority_key_path: Path | None = None
-    ):
+    def delegate_identity(self, subject_pub_file: Path, subject_name: str, authority_key_path: Path | None = None):
         """Signs another developer's public key using an Authority key."""
         if authority_key_path:
             with open(authority_key_path, "rb") as f:
@@ -346,11 +325,7 @@ class PluginSigner:
                 else self.public_key_path,
                 "rb",
             ) as f:
-                auth_name = (
-                    "BioPro Core Authority"
-                    if "root" in str(authority_key_path).lower()
-                    else "Authority"
-                )
+                auth_name = "BioPro Core Authority" if "root" in str(authority_key_path).lower() else "Authority"
         else:
             private_key = self.load_private_key()
             auth_name = "Me"
@@ -417,7 +392,7 @@ class PluginSigner:
         print("---------------------------------------")
 
 
-def sign_plugin(plugin_path: Path, private_key_path: Path = None, cert_path: Path = None):
+def sign_plugin(plugin_path: Path, private_key_path: Path | None = None, cert_path: Path | None = None):
     """Wrapper to maintain legacy compatibility with V1 import signatures."""
     signer = PluginSigner()
     if private_key_path:
@@ -465,9 +440,7 @@ def main():
             return
         signer.project_sign_plugin(Path(args.path), pem_str.encode("utf-8"))
     elif args.command == "delegate":
-        signer.delegate_identity(
-            Path(args.pub_path), args.name, Path(args.authority) if args.authority else None
-        )
+        signer.delegate_identity(Path(args.pub_path), args.name, Path(args.authority) if args.authority else None)
     elif args.command == "registry":
         signer.print_registry_entry()
     else:

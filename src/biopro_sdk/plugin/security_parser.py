@@ -56,9 +56,7 @@ class SecurityParser:
         except FileNotFoundError as e:
             raise SecurityValidationError(f"Security file not found: {filepath}") from e
 
-    def verify_manifest_binding(
-        self, manifest_filepath: Path, security_data: dict[str, Any]
-    ) -> None:
+    def verify_manifest_binding(self, manifest_filepath: Path, security_data: dict[str, Any]) -> None:
         """Verify the cryptographic hash binding of manifest.json against security.json."""
         if not manifest_filepath.exists():
             raise SecurityValidationError(f"Manifest file not found: {manifest_filepath}")

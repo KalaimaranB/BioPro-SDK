@@ -60,6 +60,7 @@ class SDKCLI:
         """Generates and prints the SBOM in the specified format."""
         try:
             import importlib
+
             biopro_core_sbom = importlib.import_module("biopro.core.sbom")
             generator = biopro_core_sbom.SBOMGenerator()
 
@@ -72,7 +73,14 @@ class SDKCLI:
             print("ERROR: SBOM generation is only supported when running inside the BioPro main application.")
             return False
 
-    def create_manifest(self, plugin_dir: str, id_arg: str | None = None, name_arg: str | None = None, version_arg: str | None = None, description_arg: str | None = None) -> bool:
+    def create_manifest(
+        self,
+        plugin_dir: str,
+        id_arg: str | None = None,
+        name_arg: str | None = None,
+        version_arg: str | None = None,
+        description_arg: str | None = None,
+    ) -> bool:
         """Interactive/Scriptable bootstrapping for a V2 manifest.json."""
         p_dir = Path(plugin_dir)
         p_dir.mkdir(parents=True, exist_ok=True)
@@ -95,13 +103,9 @@ class SDKCLI:
             "version": p_version,
             "description": p_description,
             "authors": [
-                {
-                    "name": "Developer Name",
-                    "role": "Developer",
-                    "permissions": ["read_workspace", "write_assets"]
-                }
+                {"name": "Developer Name", "role": "Developer", "permissions": ["read_workspace", "write_assets"]}
             ],
-            "custom_exclusions": []
+            "custom_exclusions": [],
         }
 
         with open(manifest_path, "w", encoding="utf-8") as f:
@@ -181,7 +185,7 @@ This plugin is developed using the BioPro-SDK. It exposes a single data analysis
         print("  └── docs/")
         print("      └── 01_getting_started.md (Documentation)")
         print("\nGet started by running:")
-        print(f"  cd \"{p_dir}\" && biopro-sdk init-identity && biopro-sdk sign .")
+        print(f'  cd "{p_dir}" && biopro-sdk init-identity && biopro-sdk sign .')
         return True
 
     def evaluate_plugin(self, plugin_dir: str) -> bool:
@@ -267,7 +271,9 @@ This plugin is developed using the BioPro-SDK. It exposes a single data analysis
                 print("  ✅ PASS: Integrates correctly with BioPro SDK classes (AnalysisBase).")
                 passed_checks += 1
             else:
-                print("  ⚠️ WARN: No references to 'AnalysisBase' found. Ensure your plugin implements the core analysis interface.")
+                print(
+                    "  ⚠️ WARN: No references to 'AnalysisBase' found. Ensure your plugin implements the core analysis interface."
+                )
                 warnings += 1
 
         print()
@@ -294,7 +300,9 @@ This plugin is developed using the BioPro-SDK. It exposes a single data analysis
             has_unpinned = False
             for dep, ver in dependencies.items():
                 if ver.startswith(">") or ver.startswith("<") or ver.startswith("^") or ver.startswith("~"):
-                    print(f"  ❌ FAIL: Dependency '{dep}' is not pinned. Recommend exact pinning (e.g., '{dep}': '1.0.0').")
+                    print(
+                        f"  ❌ FAIL: Dependency '{dep}' is not pinned. Recommend exact pinning (e.g., '{dep}': '1.0.0')."
+                    )
                     has_unpinned = True
                     failed_checks += 1
                 else:
@@ -312,7 +320,9 @@ This plugin is developed using the BioPro-SDK. It exposes a single data analysis
             print("❌ STATUS: RED (Plugin has critical compliance issues. Please resolve before releasing.)\n")
             return False
         elif warnings > 0:
-            print("⚠️ STATUS: YELLOW (Plugin is functional but has warnings. Recommended to address before releasing.)\n")
+            print(
+                "⚠️ STATUS: YELLOW (Plugin is functional but has warnings. Recommended to address before releasing.)\n"
+            )
             return True
         else:
             print("✅ STATUS: GREEN (Plugin is fully compliant and ready for release!)\n")
@@ -343,7 +353,9 @@ def main():
     sign_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
 
     # Command: project-sign
-    proj_parser = subparsers.add_parser("project-sign", help="Co-sign a plugin's security ledger as the Project CI runner.")
+    proj_parser = subparsers.add_parser(
+        "project-sign", help="Co-sign a plugin's security ledger as the Project CI runner."
+    )
     proj_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
     proj_parser.add_argument(
         "--key-env",
@@ -409,11 +421,7 @@ def main():
                 exit_code = 1
         elif args.command == "create-manifest":
             success = cli.create_manifest(
-                args.plugin_dir,
-                id_arg=args.id,
-                name_arg=args.name,
-                version_arg=args.version,
-                description_arg=args.desc
+                args.plugin_dir, id_arg=args.id, name_arg=args.name, version_arg=args.version, description_arg=args.desc
             )
             if not success:
                 exit_code = 1

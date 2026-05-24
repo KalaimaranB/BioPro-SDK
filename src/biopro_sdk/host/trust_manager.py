@@ -91,9 +91,7 @@ class TrustManager:
             self.trusted_roots.append(self.primary_root)
         else:
             try:
-                hardcoded_root = ed25519.Ed25519PublicKey.from_public_bytes(
-                    bytes.fromhex(BIOPRO_ROOT_PUBLIC_KEY_HEX)
-                )
+                hardcoded_root = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(BIOPRO_ROOT_PUBLIC_KEY_HEX))
                 self.trusted_roots.append(hardcoded_root)
             except Exception as e:
                 logger.error(f"Failed to load hardcoded root key: {e}")
@@ -147,6 +145,7 @@ class TrustManager:
         if self._cache is None:
             try:
                 from .trust_storage import TrustCache
+
                 self._cache = TrustCache()
             except ImportError:
                 self._cache = None
@@ -165,9 +164,7 @@ class TrustManager:
             cache = self._get_cache()
             if cache and cache.is_trusted(plugin_path):
                 cached_path = cache.data.get(plugin_path.name, {}).get("trust_path")
-                return VerificationResult(
-                    success=True, trust_level="verified_cache", trust_path=cached_path
-                )
+                return VerificationResult(success=True, trust_level="verified_cache", trust_path=cached_path)
 
             # 1. Authenticity: Double-Signing & RBAC Checks
             auth_result = self._verify_signatures(plugin_path)
@@ -206,9 +203,7 @@ class TrustManager:
             return VerificationResult(
                 success=False,
                 error_message=f"Critical Verification Error: {str(e)}",
-                calculated_hashes=integrity_result.calculated_hashes
-                if "integrity_result" in locals()
-                else None,
+                calculated_hashes=integrity_result.calculated_hashes if "integrity_result" in locals() else None,
             )
 
     def _verify_signatures(self, plugin_path: Path) -> VerificationResult:
@@ -250,9 +245,7 @@ class TrustManager:
             # 2. Load and verify trust links recursively
             chain = TrustChain.from_file(chain_file)
             if not chain or not chain.links:
-                return VerificationResult(
-                    success=False, error_message="Invalid or empty trust chain."
-                )
+                return VerificationResult(success=False, error_message="Invalid or empty trust chain.")
 
             verified_dev_keys = {}
             verified_links = []
@@ -307,9 +300,7 @@ class TrustManager:
 
                     if anchor_found:
                         verified_dev_keys[link.subject_pub] = link.subject_name
-                        verified_links.append(
-                            {"name": link.subject_name, "status": "anchor", "key": link.subject_pub}
-                        )
+                        verified_links.append({"name": link.subject_name, "status": "anchor", "key": link.subject_pub})
                     else:
                         return VerificationResult(
                             success=False,
@@ -319,7 +310,7 @@ class TrustManager:
                         )
 
             # Verify Leaf Developer signature on security.json canonical bytes
-            canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(',', ':')).encode('utf-8')
+            canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
             dev_link = chain.links[0]
             if dev_link.subject_pub not in verified_dev_keys:
@@ -371,18 +362,14 @@ class TrustManager:
             return VerificationResult(success=True, trust_path=full_path)
 
         except Exception as e:
-            return VerificationResult(
-                success=False, error_message=f"Chain Verification Error: {str(e)}"
-            )
+            return VerificationResult(success=False, error_message=f"Chain Verification Error: {str(e)}")
 
     def _check_integrity(self, plugin_path: Path) -> VerificationResult:
         """Verifies every file against the signed security hashes and performs covert backdoor audits."""
         try:
             security_file = plugin_path / "security.json"
             if not security_file.exists():
-                return VerificationResult(
-                    success=False, error_message="Missing security.json ledger."
-                )
+                return VerificationResult(success=False, error_message="Missing security.json ledger.")
 
             sec_parser = SecurityParser()
             security_data = sec_parser.parse_file(str(security_file))
@@ -394,13 +381,17 @@ class TrustManager:
             active_ignore = self.IGNORE_LIST | custom_exclusions
 
             found_files = set()
-            found_hashes = {}
+            found_hashes: dict[str, str] = {}
             integrity_passed = True
             error_msg = ""
 
             for root, dirs, files in os.walk(plugin_path):
                 # Prune standard development and system virtual environments to avoid scanning overhead and false backdoor triggers
-                dirs[:] = [d for d in dirs if d not in {".venv", "venv", ".git", ".github", ".vscode", ".idea", ".pytest_cache", "__pycache__"}]
+                dirs[:] = [
+                    d
+                    for d in dirs
+                    if d not in {".venv", "venv", ".git", ".github", ".vscode", ".idea", ".pytest_cache", "__pycache__"}
+                ]
                 # Process every single file to run covert backdoor audit checks
                 for file in files:
                     rel_path = os.path.relpath(os.path.join(root, file), plugin_path)
@@ -423,12 +414,18 @@ class TrustManager:
                                 return VerificationResult(
                                     success=False,
                                     error_message=f"Unauthorized Executable in Excluded Directory: Found '{rel_path}' inside an ignored zone.",
-                                    calculated_hashes=found_hashes
+                                    calculated_hashes=found_hashes,
                                 )
                         continue
 
                     # Skip cryptographic verification assets
-                    if file in ["signature.bin", "project_signature.bin", "trust_chain.json", "manifest.json", "security.json"]:
+                    if file in [
+                        "signature.bin",
+                        "project_signature.bin",
+                        "trust_chain.json",
+                        "manifest.json",
+                        "security.json",
+                    ]:
                         continue
 
                     found_files.add(rel_path)
@@ -464,9 +461,7 @@ class TrustManager:
             )
 
         except Exception as e:
-            return VerificationResult(
-                success=False, error_message=f"Integrity Check Error: {str(e)}"
-            )
+            return VerificationResult(success=False, error_message=f"Integrity Check Error: {str(e)}")
 
     def _hash_file(self, full_path: str) -> str:
         """Utility to calculate SHA-256 for a file."""

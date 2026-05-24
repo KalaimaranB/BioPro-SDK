@@ -56,6 +56,7 @@ class IAssetVerifier(abc.ABC):
 
 class AssetVerificationError(Exception):
     """Raised when a downloaded asset fails cryptographic integrity hash matching."""
+
     pass
 
 

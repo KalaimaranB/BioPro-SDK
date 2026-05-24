@@ -21,9 +21,7 @@ class FunctionalTask(AnalysisBase):
         >>> task_scheduler.submit(task, None)
     """
 
-    def __init__(
-        self, func: Callable[[], Any], plugin_id: str = "unknown", name: str = "Utility Task"
-    ):
+    def __init__(self, func: Callable[[], Any], plugin_id: str = "unknown", name: str = "Utility Task"):
         """Initialize the task.
 
         Args:

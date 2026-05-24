@@ -151,15 +151,28 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
         "version": "1.0.0",
         "description": "Valid Plugin desc",
         "manifest_version": 2,
-        "integrity": {"hashes": {"main.py": py_hash}},
+        "authors": [{"name": "Developer", "role": "Developer", "permissions": ["sign_code"]}],
     }
-
-    # Canonicalize manifest and sign it using dev key
-    manifest_bytes = json.dumps(manifest_data, sort_keys=True).encode()
-    signature_bytes = dev_private.sign(manifest_bytes)
 
     with open(plugin_dir / "manifest.json", "w") as f:
         json.dump(manifest_data, f)
+    manifest_bytes = (plugin_dir / "manifest.json").read_bytes()
+    manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
+
+    security_data = {
+        "security_version": 1,
+        "plugin_id": "my_valid_plugin",
+        "manifest_hash": manifest_hash,
+        "exclusions": [],
+        "hashes": {"main.py": py_hash},
+    }
+
+    # Canonicalize security.json and sign it using dev key
+    canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signature_bytes = dev_private.sign(canonical_bytes)
+
+    with open(plugin_dir / "security.json", "w") as f:
+        json.dump(security_data, f)
 
     with open(plugin_dir / "signature.bin", "wb") as f:
         f.write(signature_bytes)
@@ -246,7 +259,17 @@ def test_sign_plugin_direct(tmp_path):
     plugin_dir.mkdir()
 
     with open(plugin_dir / "manifest.json", "w") as f:
-        json.dump({"id": "my_plugin", "author": "me"}, f)
+        json.dump(
+            {
+                "id": "my_plugin",
+                "name": "My Plugin",
+                "version": "1.0.0",
+                "description": "desc",
+                "manifest_version": 2,
+                "authors": [{"name": "me", "role": "Dev", "permissions": ["sign_code"]}],
+            },
+            f,
+        )
 
     (plugin_dir / "code.py").write_text("print(1)")
 
@@ -267,7 +290,7 @@ def test_sign_plugin_direct(tmp_path):
     sign_plugin(plugin_dir, priv_path, cert_path)
 
     assert (plugin_dir / "signature.bin").exists()
-    assert (plugin_dir / "dev_cert.bin").exists()
+    assert (plugin_dir / "security.json").exists()
 
 
 def test_trust_manager_roots_and_developer(tmp_path):
