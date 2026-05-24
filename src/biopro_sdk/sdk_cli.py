@@ -5,7 +5,6 @@ Handles developer identity setup, plugin signing, manifest generation, and compl
 
 import argparse
 import json
-import logging
 import os
 import sys
 from pathlib import Path
@@ -78,7 +77,7 @@ class SDKCLI:
         p_dir = Path(plugin_dir)
         p_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = p_dir / "manifest.json"
-        
+
         if manifest_path.exists():
             print(f"⚠️  manifest.json already exists at {manifest_path}. Aborting to prevent overwrite.")
             return False
@@ -116,11 +115,11 @@ class SDKCLI:
         """Create a complete boilerplate plugin skeleton with documentation and source template."""
         p_dir = Path(plugin_dir)
         p_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # 1. Create subfolders
         (p_dir / "src").mkdir(parents=True, exist_ok=True)
         (p_dir / "docs").mkdir(parents=True, exist_ok=True)
-        
+
         # 2. Create manifest.json
         self.create_manifest(
             str(p_dir),
@@ -142,11 +141,11 @@ class CustomAnalysisPlugin(AnalysisBase):
             workspace_context: The host application environment and loaded data assets.
         \"\"\"
         self.logger.info("Executing custom boilerplate analysis workflow...")
-        
+
         # Access workspace variables
         assets = workspace_context.get_assets()
         self.logger.info(f"Loaded {len(assets)} raw assets in current workspace.")
-        
+
         # Complete work and publish progress
         self.publish_progress(100, "Boilerplate execution completed.")
         return {"status": "success", "processed_assets": len(assets)}

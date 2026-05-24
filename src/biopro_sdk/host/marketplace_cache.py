@@ -7,11 +7,9 @@ remote querying, sandboxed local caching, and cryptographic verification of remo
 import abc
 import hashlib
 import logging
-import os
 import shutil
 import urllib.request
 from pathlib import Path
-
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +78,7 @@ class MarketplaceQueryService(IMarketplaceQueryService):
             return target_path
         except Exception as e:
             logger.error(f"Failed to securely fetch remote asset from {url}: {e}")
-            raise IOError(f"Remote Fetch Failed: {str(e)}")
+            raise OSError(f"Remote Fetch Failed: {str(e)}") from e
 
 
 class SandboxCacheService(ISandboxCacheService):

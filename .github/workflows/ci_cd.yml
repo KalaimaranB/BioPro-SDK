@@ -1,0 +1,130 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write # Required to push to gh-pages branch and create git tags
+  id-token: write # Required for PyPI OIDC trusted publishing
+
+jobs:
+  test-and-lint:
+    name: Execute SDK Verification on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+      fail-fast: false
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up virtual environment and sync dependencies
+        run: |
+          uv venv
+          uv pip install -e .
+          uv pip install pytest pytest-cov pytest-qt ruff mypy types-requests
+
+      - name: Lint and Format Audit (Ruff)
+        run: |
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+
+      - name: Static Type Check (Mypy)
+        run: |
+          uv run mypy src
+
+      - name: Headless Unit Testing with Coverage Gates
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: src
+        run: |
+          uv run pytest
+
+  deploy-docs:
+    name: Deploy Documentation
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MkDocs and Material Theme
+        run: |
+          pip install mkdocs-material
+
+      - name: Build and Deploy to GitHub Pages
+        run: |
+          mkdocs gh-deploy --force
+
+  publish:
+    name: Build & Publish SDK
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Extract Version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Check if Tag Exists
+        id: check_tag
+        run: |
+          if git rev-parse "v${{ env.VERSION }}" >/dev/null 2>&1; then
+            echo "TAG_EXISTS=true" >> $GITHUB_ENV
+            echo "Tag v${{ env.VERSION }} already exists. Skipping publish."
+          else
+            echo "TAG_EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Git Tag
+        if: env.TAG_EXISTS == 'false'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
+
+      - name: Build Package
+        if: env.TAG_EXISTS == 'false'
+        run: |
+          pip install build
+          python -m build
+
+      - name: Publish to PyPI
+        if: env.TAG_EXISTS == 'false'
+        uses: pypa/gh-action-pypi-publish@release/v1

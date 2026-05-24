@@ -17,10 +17,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from biopro_sdk.plugin.manifest_parser import ManifestParser
-from biopro_sdk.plugin.security_parser import SecurityParser, SecurityValidationError
+from biopro_sdk.plugin.security_parser import SecurityParser
+
 from .trust_overrides import LocalTrustRegistry
 from .trust_path import TrustChain
-
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +256,7 @@ class TrustManager:
 
             verified_dev_keys = {}
             verified_links = []
-            
+
             # Map out recognized and verified links
             for i in range(len(chain.links)):
                 link = chain.links[i]
@@ -320,7 +320,7 @@ class TrustManager:
 
             # Verify Leaf Developer signature on security.json canonical bytes
             canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(',', ':')).encode('utf-8')
-            
+
             dev_link = chain.links[0]
             if dev_link.subject_pub not in verified_dev_keys:
                 return VerificationResult(
