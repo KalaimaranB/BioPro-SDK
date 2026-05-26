@@ -1,18 +1,59 @@
-# 🎨 UI Module (`biopro_sdk.plugin.components` & `wizard`)
+# 🎨 UI Module (`biopro_sdk.plugin.components` & `wizard` & `ribbon`)
 
-Provides standard, theme-aware user interface components, unified styling classes, and an interactive, multi-step guided setup framework.
+Provides standard, theme-aware user interface components, unified styling classes, structural layouts, and an interactive, multi-step guided setup framework.
 
 ---
 
 ## 🔘 Semantic Buttons
 
-Inherit from `QPushButton`. These elements dynamically apply the correct font weights, border curvatures, and color schemes based on whether light or dark mode is active.
+Inherit from `QPushButton`. These elements dynamically apply the correct font weights, border curvatures, and color schemes based on whether light or dark mode is active. They also natively support tooltips.
 
 ### Available Classes
 
-*   **`PrimaryButton`:** Used for final actions or positive progressions (e.g. "Save Configuration", "Next Step"). Applies active primary brand colors.
-*   **`SecondaryButton`:** Used for neutral actions, navigation backtracking, or cancel flows (e.g. "Back", "Close"). Applies muted secondary gray outlines.
-*   **`DangerButton`:** Used exclusively for destructive or irreversible actions (e.g. "Delete Session", "Reset Factory"). Applies brand-compliant crimson colors.
+*   **`BioButton`:** The base unified button class. Takes a `variant` argument (`"primary"`, `"secondary"`, or `"danger"`).
+*   **`PrimaryButton`:** Used for final actions or positive progressions (e.g. "Save Configuration", "Next Step"). Applies active primary brand colors. Inherits from `BioButton`.
+*   **`SecondaryButton`:** Used for neutral actions, navigation backtracking, or cancel flows (e.g. "Back", "Close"). Applies muted secondary gray outlines. Inherits from `BioButton`.
+*   **`DangerButton`:** Used exclusively for destructive or irreversible actions. Applies brand-compliant crimson colors. Inherits from `BioButton`.
+*   **`BioToggleButton`:** A button that handles active/inactive states visually (turns primary color when checked).
+*   **`BioRunButton` & `BioCancelButton`:** Pre-configured action buttons with standard icons and text ("🧬 Run", "⏹ Cancel").
+*   **`BioHelpButton`:** A small `(?)` button designed to launch help dialogs or show extended tooltips.
+
+---
+
+## 🎛 Core Input Widgets
+
+These widgets wrap standard Qt inputs but natively inherit the BioPro theme (background colors, borders, selection colors).
+
+*   **`BioComboBox`:** Standard dropdown menu. Styles both the selection button and the internal popup list (`QAbstractItemView`).
+*   **`BioSpinBox` & `BioDoubleSpinBox`:** Numeric and floating-point input fields.
+*   **`BioLineEdit`:** Single-line text input.
+*   **`BioListWidget` & `BioTableWidget`:** Standard list and table views with styled headers and selection highlights.
+
+---
+
+## 📐 Layout & Structural Elements
+
+*   **`BioRibbon` (`from biopro_sdk.plugin.ribbon import BioRibbon`)**: A base class for creating toolbars or ribbons. It manages horizontal layouts, vertical separators (`|`), and the visual states of execution buttons (`Run` and `Cancel`). It also provides overridable hooks (`on_run_started`, `on_run_finished`) to easily connect background worker threads.
+*   **`BioSplitter`:** A splitter with a correctly styled grab handle.
+*   **`BioScrollArea`:** A transparent, borderless scroll area.
+
+---
+
+## ✍️ Typography & Labels
+
+Standardized text labels that automatically handle font sizes, weights, and graceful text truncation (overflow/underflow).
+
+*   **`BioHeaderLabel` (or `HeaderLabel`):** H1 header for section titles.
+*   **`SubtitleLabel`:** H2 header for subsections.
+*   **`BioCaptionLabel`:** Muted text for hints and educational snippets.
+*   **`BioStatusLabel`:** Italicized, secondary text for status indicators.
+
+---
+
+## 🎨 Theme Injection
+
+**`apply_component_style(widget: QWidget, component_type: str)`**
+A helper function to dynamically apply theme CSS to standard Qt widgets without requiring a subclass. Useful when integrating third-party libraries or when subclassing isn't possible.
 
 ---
 

@@ -49,6 +49,19 @@ def save_json(path: str, data: dict[str, Any], pretty: bool = True) -> None:
         json.dump(data, f, indent=2 if pretty else None)
 
 
+def read_binary(path: Path | str) -> bytes:
+    """Read binary data from a file."""
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def write_binary(path: Path | str, data: bytes) -> None:
+    """Write binary data to a file."""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(data)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # PLUGIN CONFIGURATION
 # ──────────────────────────────────────────────────────────────────────────────

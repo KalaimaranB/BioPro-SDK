@@ -23,3 +23,7 @@ Delineates heavy offscreen scientific math computations from graphic elements, m
 ### 4. 🛡️ [Security & Cryptography Module (`biopro_sdk.host`)](API_Trust_Cryptography.md)
 Exposes host validation routines, trust override registries, and signature verification managers.
 *   **Core Interfaces:** `TrustManager`, `TrustOverrideRegistry`, `TrustPathSerialization`.
+
+### 5. 📂 [Workflow Context & Attachments Module (`biopro_sdk.plugin.workflow`)](API_Workflow_Context.md)
+Provides context helpers and attachment definitions to manage non-JSON data linked to workflow files.
+*   **Core Interfaces:** `WorkflowContext`, `WorkflowAttachment`.
