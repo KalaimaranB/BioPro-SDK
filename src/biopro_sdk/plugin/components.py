@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QStyledItemDelegate,
     QTableWidget,
     QWidget,
 )
@@ -328,6 +329,7 @@ class BioComboBox(QComboBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setItemDelegate(QStyledItemDelegate(self))
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
@@ -348,6 +350,7 @@ class BioComboBox(QComboBox):
                 selection-background-color: {Colors.ACCENT_PRIMARY};
                 selection-color: {Colors.BG_DARKEST};
                 border: 1px solid {Colors.BORDER};
+                outline: none;
             }}
         """)
 
