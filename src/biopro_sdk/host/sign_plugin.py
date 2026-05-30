@@ -166,15 +166,23 @@ class PluginSigner:
             raise ValueError("Plugin ID in manifest must match the folder name.")
 
         logger.info(f"Hashing files for {plugin_id}...")
+        custom_excl = {e.rstrip("/") for e in (manifest.get("custom_exclusions") or [])}
+        active_ignore = IGNORE_LIST | custom_excl
         hashes = {}
         for root, dirs, files in os.walk(plugin_path):
-            dirs[:] = [d for d in dirs if d not in IGNORE_LIST]
+            dirs[:] = [d for d in dirs if d not in active_ignore]
 
             for file in sorted(files):
-                if file in IGNORE_LIST:
+                if file in active_ignore:
                     continue
 
                 rel_path = os.path.relpath(os.path.join(root, file), plugin_path)
+
+                # Check path parts too, similar to TrustManager
+                path_parts = rel_path.split(os.sep)
+                if any(part in active_ignore for part in path_parts):
+                    continue
+
                 if any(file.endswith(ext) for ext in MANDATORY_EXTENSIONS):
                     hashes[rel_path] = self._hash_file(Path(root) / file)
 

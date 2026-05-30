@@ -23,20 +23,18 @@ class PluginState(ABC):
     to ensure proper serialization. Complex objects should be stored as paths
     or serializable representations.
 
-    Example:
-        >>> @dataclass
-        ... class MyAnalysisState(PluginState):
-        ...     image_path: str = ""
-        ...     threshold: float = 0.5
-        ...     results: list = None
-        ...
-        ...     def to_dict(self) -> dict:
-        ...         return asdict(self)
-        ...
-        ...     @classmethod
-        ...     def from_dict(cls, data: dict):
-        ...         return cls(**data)
+    This class strictly prevents dynamic attribute assignment. All attributes
+    must be declared as fields in the subclass dataclass.
     """
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        fields = getattr(type(self), "__dataclass_fields__", {})
+        if name not in fields and not hasattr(self, name):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'. "
+                "Dynamic attribute assignment is strictly prohibited on PluginState objects."
+            )
+        super().__setattr__(name, value)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert state to dictionary for serialization.

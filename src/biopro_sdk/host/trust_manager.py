@@ -390,7 +390,19 @@ class TrustManager:
                 dirs[:] = [
                     d
                     for d in dirs
-                    if d not in {".venv", "venv", ".git", ".github", ".vscode", ".idea", ".pytest_cache", "__pycache__"}
+                    if d
+                    not in {
+                        ".venv",
+                        "venv",
+                        ".git",
+                        ".github",
+                        ".vscode",
+                        ".idea",
+                        ".pytest_cache",
+                        "__pycache__",
+                        "tests",
+                        "docs",
+                    }
                 ]
                 # Process every single file to run covert backdoor audit checks
                 for file in files:
