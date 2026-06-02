@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QStyledItemDelegate,
     QTableWidget,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -60,6 +61,67 @@ except ImportError:
 def _connect_theme_signal(callback):
     theme_manager.theme_changed.connect(callback)
     callback()
+
+
+def _apply_global_sdk_styles() -> None:
+    """Inject QToolTip styling globally and configure the QApplication palette for dark mode."""
+    import re
+
+    from PyQt6.QtGui import QColor, QPalette
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if not isinstance(app, QApplication):
+        return
+
+    # --- 0. Enforce Fusion Style Engine ---
+    # macOS native style engine heavily ignores custom background colors for native containers (tooltips, dropdowns).
+    # Forcing Fusion ensures our theme correctly styles everything cross-platform.
+    app.setStyle("Fusion")
+
+    # --- 1. Enforce Dark Palette Globally ---
+    # This ensures native OS wrappers (like macOS dropdown menus) use dark backgrounds instead of white.
+    palette = app.palette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(Colors.BG_DARK))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(Colors.FG_PRIMARY))
+    palette.setColor(QPalette.ColorRole.Base, QColor(Colors.BG_MEDIUM))
+    palette.setColor(QPalette.ColorRole.Text, QColor(Colors.FG_PRIMARY))
+    palette.setColor(QPalette.ColorRole.Button, QColor(Colors.BG_LIGHT))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(Colors.FG_PRIMARY))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(Colors.ACCENT_PRIMARY))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(Colors.BG_DARKEST))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(Colors.BG_DARKEST))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(Colors.FG_PRIMARY))
+    app.setPalette(palette)
+
+    # --- 2. Global Stylesheet Overrides ---
+    qss = app.styleSheet() or ""
+    # Remove any existing QToolTip block
+    qss = re.sub(r"QToolTip\s*\{[^}]*\}", "", qss)
+
+    try:
+        family = getattr(Fonts, "FAMILY_UI", "Arial")
+    except NameError:
+        family = "Arial"
+
+    tooltip_qss = f"""
+        QToolTip {{
+            color: #ffffff;
+            background-color: {Colors.BG_DARKEST};
+            border: 1px solid {Colors.BORDER_FOCUS};
+            padding: 5px 8px;
+            font-family: {family};
+            font-size: 11px;
+        }}
+    """
+
+    app.setStyleSheet(qss + tooltip_qss)
+
+
+try:
+    _connect_theme_signal(_apply_global_sdk_styles)
+except Exception:
+    pass
 
 
 def apply_component_style(widget: QWidget, component_type: str) -> None:
@@ -208,14 +270,85 @@ class BioCancelButton(SecondaryButton):
         super().__init__(text, parent)
 
 
+class _HelpPopup(QWidget):
+    """Rich popup for help buttons."""
+
+    def __init__(self, text: str, title: str = "", parent=None):
+        super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        container = QFrame()
+        container.setObjectName("PopupContainer")
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(12, 12, 12, 12)
+        container_layout.setSpacing(6)
+
+        if title:
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet(
+                f"font-weight: bold; color: {Colors.ACCENT_PRIMARY}; font-family: {Fonts.FAMILY_UI}; font-size: 13px;"
+            )
+            container_layout.addWidget(title_lbl)
+
+        text_lbl = QLabel(text)
+        text_lbl.setWordWrap(True)
+        text_lbl.setMinimumWidth(200)
+        text_lbl.setMaximumWidth(400)
+        text_lbl.setStyleSheet(
+            f"color: {Colors.FG_PRIMARY}; font-family: {Fonts.FAMILY_UI}; font-size: 12px; line-height: 1.4;"
+        )
+        container_layout.addWidget(text_lbl)
+
+        layout.addWidget(container)
+
+        self.setStyleSheet(f"""
+            QFrame#PopupContainer {{
+                background-color: {Colors.BG_DARKEST};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 8px;
+            }}
+        """)
+
+
 class BioHelpButton(QPushButton):
-    """Small help (?) button for tooltips and dialogs."""
+    """Small help (?) button that shows a rich popup dialog on click."""
 
     def __init__(self, parent=None):
         super().__init__("?", parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(20, 20)
+        self._help_text = ""
+        self._help_title = ""
+        self.clicked.connect(self._show_popup)
         _connect_theme_signal(self._apply_theme_styles)
+
+    def setHelpText(self, text: str, title: str = "") -> None:
+        """Set the detailed help text and optional title for the popup."""
+        self._help_text = text
+        self._help_title = title
+
+    def setToolTip(self, text: str | None) -> None:
+        """Override to use the click popup instead of the native hover tooltip for backwards compatibility."""
+        super().setToolTip("")
+        self.setHelpText(text or "")
+
+    def _show_popup(self) -> None:
+        if not self._help_text:
+            return
+
+        self._popup = _HelpPopup(self._help_text, self._help_title, self.window())
+        self._popup.adjustSize()
+
+        # Position the popup below the button
+        pos = self.mapToGlobal(self.rect().bottomLeft())
+        # Offset slightly for aesthetics
+        pos.setY(pos.y() + 5)
+        pos.setX(pos.x() - 10)
+        self._popup.move(pos)
+        self._popup.show()
 
     def _apply_theme_styles(self) -> None:
         self.setStyleSheet(f"""
@@ -329,12 +462,18 @@ class BioComboBox(QComboBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        from PyQt6.QtWidgets import QListView
+
+        # Override native macOS popup view to allow proper styling
+        view = QListView()
+        self.setView(view)
         self.setItemDelegate(QStyledItemDelegate(self))
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
         self.setStyleSheet(f"""
             QComboBox {{
+                combobox-popup: 0;
                 background-color: {Colors.BG_MEDIUM};
                 color: {Colors.FG_PRIMARY};
                 border: 1px solid {Colors.BORDER};
@@ -350,7 +489,21 @@ class BioComboBox(QComboBox):
                 selection-background-color: {Colors.ACCENT_PRIMARY};
                 selection-color: {Colors.BG_DARKEST};
                 border: 1px solid {Colors.BORDER};
+                border-radius: 4px;
                 outline: none;
+                padding: 2px;
+            }}
+            QComboBox QAbstractItemView::item {{
+                min-height: 24px;
+                padding: 2px 4px;
+                border-radius: 2px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {Colors.BG_LIGHT};
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.BG_DARKEST};
             }}
         """)
 

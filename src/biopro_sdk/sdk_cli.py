@@ -47,6 +47,16 @@ class SDKCLI:
             print(f"ERROR: Project signing failed: {e}")
             return False
 
+    def delegate_identity(self, pub_path: str, name: str, authority: str | None = None) -> bool:
+        """Delegate identity to another researcher's public key."""
+        try:
+            auth_path = Path(authority) if authority else None
+            self.signer.delegate_identity(Path(pub_path), name, auth_path)
+            return True
+        except Exception as e:
+            print(f"ERROR: Delegation failed: {e}")
+            return False
+
     def print_registry_entry(self) -> bool:
         """Export the JSON snippet for the central registry."""
         try:
@@ -366,6 +376,12 @@ def main():
     # Command: registry
     subparsers.add_parser("registry", help="Export the JSON snippet for the central registry.")
 
+    # Command: delegate
+    delegate_parser = subparsers.add_parser("delegate", help="Delegate trust to another developer's public key.")
+    delegate_parser.add_argument("pub_path", type=str, help="Path to researcher's public.pub")
+    delegate_parser.add_argument("name", type=str, help="Researcher's name")
+    delegate_parser.add_argument("--authority", type=str, help="Path to authority private key (optional)")
+
     # Command: create-manifest
     manifest_parser = subparsers.add_parser("create-manifest", help="Bootstraps a fresh manifest.json for a plugin.")
     manifest_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
@@ -417,6 +433,10 @@ def main():
                     exit_code = 1
         elif args.command == "registry":
             success = cli.print_registry_entry()
+            if not success:
+                exit_code = 1
+        elif args.command == "delegate":
+            success = cli.delegate_identity(args.pub_path, args.name, args.authority)
             if not success:
                 exit_code = 1
         elif args.command == "create-manifest":
