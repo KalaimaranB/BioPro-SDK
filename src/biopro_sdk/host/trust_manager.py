@@ -393,6 +393,7 @@ class TrustManager:
                     if d
                     not in {
                         ".venv",
+                        ".plugin_venv",
                         "venv",
                         ".git",
                         ".github",

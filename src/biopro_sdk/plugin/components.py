@@ -138,6 +138,7 @@ class BioButton(QPushButton):
 
     def __init__(self, text: str, variant: str = "primary", parent=None):
         super().__init__(text, parent)
+        self.setObjectName(f"BioButton_{variant}")
         self.variant = variant
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._glow_effect = None
@@ -146,7 +147,7 @@ class BioButton(QPushButton):
     def _apply_theme_styles(self) -> None:
         if self.variant == "primary":
             self.setStyleSheet(f"""
-                QPushButton {{
+                QPushButton#BioButton_primary {{
                     background-color: {Colors.ACCENT_PRIMARY};
                     color: {Colors.BG_DARKEST};
                     border: none;
@@ -156,8 +157,8 @@ class BioButton(QPushButton):
                     font-weight: bold;
                     font-family: {Fonts.FAMILY_UI};
                 }}
-                QPushButton:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
-                QPushButton:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
+                QPushButton#BioButton_primary:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
+                QPushButton#BioButton_primary:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
             """)
 
             if Colors.GLOW_COLOR != "transparent":
@@ -179,7 +180,7 @@ class BioButton(QPushButton):
 
         elif self.variant == "secondary":
             self.setStyleSheet(f"""
-                QPushButton {{
+                QPushButton#BioButton_secondary {{
                     background-color: {Colors.BG_MEDIUM};
                     color: {Colors.FG_PRIMARY};
                     border: 1px solid {Colors.BORDER};
@@ -188,11 +189,11 @@ class BioButton(QPushButton):
                     font-size: 13px;
                     font-family: {Fonts.FAMILY_UI};
                 }}
-                QPushButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
+                QPushButton#BioButton_secondary:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
             """)
         elif self.variant == "danger":
             self.setStyleSheet("""
-                QPushButton {
+                QPushButton#BioButton_danger {
                     background-color: #dc3545;
                     color: white;
                     border: none;
@@ -201,7 +202,7 @@ class BioButton(QPushButton):
                     font-size: 13px;
                     font-weight: bold;
                 }
-                QPushButton:hover { background-color: #c82333; }
+                QPushButton#BioButton_danger:hover { background-color: #c82333; }
             """)
 
 
@@ -231,13 +232,18 @@ class BioToggleButton(QPushButton):
 
     def __init__(self, text: str, parent=None):
         super().__init__(text, parent)
+        self.setObjectName("BioToggleButton")
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        # Extensible defaults that subclasses or instances can configure
+        self.custom_css_overrides = ""
+
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
         self.setStyleSheet(f"""
-            QPushButton {{
+            QPushButton#BioToggleButton {{
                 background-color: {Colors.BG_MEDIUM};
                 color: {Colors.FG_PRIMARY};
                 border: 1px solid {Colors.BORDER};
@@ -245,9 +251,10 @@ class BioToggleButton(QPushButton):
                 padding: 10px 20px;
                 font-size: 13px;
                 font-family: {Fonts.FAMILY_UI};
+                {self.custom_css_overrides}
             }}
-            QPushButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
-            QPushButton:checked {{
+            QPushButton#BioToggleButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
+            QPushButton#BioToggleButton:checked {{
                 background-color: {Colors.ACCENT_PRIMARY};
                 color: {Colors.BG_DARKEST};
                 border: none;
@@ -318,6 +325,7 @@ class BioHelpButton(QPushButton):
 
     def __init__(self, parent=None):
         super().__init__("?", parent)
+        self.setObjectName("BioHelpButton")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(20, 20)
         self._help_text = ""
@@ -352,7 +360,7 @@ class BioHelpButton(QPushButton):
 
     def _apply_theme_styles(self) -> None:
         self.setStyleSheet(f"""
-            QPushButton {{
+            QPushButton#BioHelpButton {{
                 background-color: transparent;
                 color: {Colors.FG_SECONDARY};
                 border: 1px solid {Colors.BORDER};
@@ -360,8 +368,10 @@ class BioHelpButton(QPushButton):
                 font-size: 11px;
                 font-weight: bold;
                 font-family: {Fonts.FAMILY_UI};
+                padding: 0px;
+                margin: 0px;
             }}
-            QPushButton:hover {{
+            QPushButton#BioHelpButton:hover {{
                 background-color: {Colors.BG_LIGHT};
                 color: {Colors.FG_PRIMARY};
                 border-color: {Colors.FG_PRIMARY};
