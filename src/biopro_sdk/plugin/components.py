@@ -142,6 +142,7 @@ class BioButton(QPushButton):
         self.variant = variant
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._glow_effect = None
+        self.custom_css_overrides = ""
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
@@ -156,6 +157,7 @@ class BioButton(QPushButton):
                     font-size: 13px;
                     font-weight: bold;
                     font-family: {Fonts.FAMILY_UI};
+                    {self.custom_css_overrides}
                 }}
                 QPushButton#BioButton_primary:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
                 QPushButton#BioButton_primary:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
@@ -188,12 +190,13 @@ class BioButton(QPushButton):
                     padding: 10px 20px;
                     font-size: 13px;
                     font-family: {Fonts.FAMILY_UI};
+                    {self.custom_css_overrides}
                 }}
                 QPushButton#BioButton_secondary:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
             """)
         elif self.variant == "danger":
-            self.setStyleSheet("""
-                QPushButton#BioButton_danger {
+            self.setStyleSheet(f"""
+                QPushButton#BioButton_danger {{
                     background-color: #dc3545;
                     color: white;
                     border: none;
@@ -201,8 +204,9 @@ class BioButton(QPushButton):
                     padding: 8px 16px;
                     font-size: 13px;
                     font-weight: bold;
-                }
-                QPushButton#BioButton_danger:hover { background-color: #c82333; }
+                    {self.custom_css_overrides}
+                }}
+                QPushButton#BioButton_danger:hover {{ background-color: #c82333; }}
             """)
 
 
