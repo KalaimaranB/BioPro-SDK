@@ -56,6 +56,7 @@ class TrustManager:
         ".idea",
         ".pytest_cache",
         ".venv",
+        ".plugin_venv",
         "venv",
         "cache",
         "results",
@@ -73,7 +74,7 @@ class TrustManager:
     }
 
     # Files that MUST be signed and are never ignored in standard zones
-    MANDATORY_EXTENSIONS = {".py", ".pyw", ".json", ".yml", ".yaml", ".fcs"}
+    MANDATORY_EXTENSIONS = {".py", ".pyw", ".json", ".yml", ".yaml", ".fcs", ".png", ".jpg"}
 
     def __init__(self, root_public_key: ed25519.Ed25519PublicKey | None = None):
         """Initialize the manager with a Root Public Key and local overrides."""
@@ -387,24 +388,7 @@ class TrustManager:
 
             for root, dirs, files in os.walk(plugin_path):
                 # Prune standard development and system virtual environments to avoid scanning overhead and false backdoor triggers
-                dirs[:] = [
-                    d
-                    for d in dirs
-                    if d
-                    not in {
-                        ".venv",
-                        ".plugin_venv",
-                        "venv",
-                        ".git",
-                        ".github",
-                        ".vscode",
-                        ".idea",
-                        ".pytest_cache",
-                        "__pycache__",
-                        "tests",
-                        "docs",
-                    }
-                ]
+                dirs[:] = [d for d in dirs if d not in active_ignore]
                 # Process every single file to run covert backdoor audit checks
                 for file in files:
                     rel_path = os.path.relpath(os.path.join(root, file), plugin_path)

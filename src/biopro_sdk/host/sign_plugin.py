@@ -81,6 +81,7 @@ IGNORE_LIST = {
     ".idea",
     ".pytest_cache",
     ".venv",
+    ".plugin_venv",
     "venv",
     "cache",
     "results",
