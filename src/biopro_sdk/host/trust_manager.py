@@ -388,7 +388,18 @@ class TrustManager:
 
             for root, dirs, files in os.walk(plugin_path):
                 # Prune standard development and system virtual environments to avoid scanning overhead and false backdoor triggers
-                dirs[:] = [d for d in dirs if d not in active_ignore]
+                PRUNE_DIRS = {
+                    ".venv",
+                    "venv",
+                    ".plugin_venv",
+                    ".git",
+                    "__pycache__",
+                    ".idea",
+                    ".vscode",
+                    ".pytest_cache",
+                    ".github",
+                }
+                dirs[:] = [d for d in dirs if d not in PRUNE_DIRS]
                 # Process every single file to run covert backdoor audit checks
                 for file in files:
                     rel_path = os.path.relpath(os.path.join(root, file), plugin_path)
