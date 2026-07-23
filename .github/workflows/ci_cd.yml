@@ -74,6 +74,8 @@ jobs:
           pip install mkdocs-material "mkdocstrings[python]"
 
       - name: Build and Deploy to GitHub Pages
+        env:
+          PYTHONPATH: src
         run: |
           mkdocs gh-deploy --force
 

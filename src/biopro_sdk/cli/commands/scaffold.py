@@ -231,8 +231,11 @@ jobs:
             mkdocs-material-
       - name: Install dependencies
         run: |
-          uv pip install --system mkdocs-material
-      - run: mkdocs gh-deploy --force
+          uv pip install --system mkdocs-material "mkdocstrings[python]"
+      - name: Build and Deploy
+        env:
+          PYTHONPATH: src
+        run: mkdocs gh-deploy --force
 """
     with open(deploy_docs_file, "w", encoding="utf-8") as f:
         f.write(deploy_docs_content)
