@@ -175,7 +175,14 @@ class TrustManager:
             if not auth_result.success or not integrity_result.success:
                 hashes = integrity_result.calculated_hashes or {}
                 if self.overrides.is_locally_trusted(plugin_path.name, hashes):
-                    return VerificationResult(success=True, trust_level="verified_local")
+                    return VerificationResult(
+                        success=True,
+                        trust_level="verified_local",
+                        trust_path=[
+                            {"name": "Local System User", "status": "root", "key": "Manual Override"},
+                            {"name": "Security Check Bypassed", "status": "anchor", "key": "Local Machine Policy"},
+                        ],
+                    )
 
                 final_res = auth_result if not auth_result.success else integrity_result
                 final_res.calculated_hashes = hashes
