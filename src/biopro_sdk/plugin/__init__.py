@@ -27,6 +27,7 @@ from .components import (
     SubtitleLabel,
     apply_component_style,
 )
+from .context import PluginContext, UndeclaredCapabilityAccess
 from .dialogs import (
     ask_ok_cancel,
     ask_yes_no,
@@ -44,6 +45,7 @@ from .events import CentralEventBus
 from .interfaces import BioProPlugin
 from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
 from .logging import get_logger
+from .manifest import PluginManifest
 from .preferences import PreferenceManagerProtocol
 from .ribbon import BioRibbon
 from .signals import PluginSignals
@@ -64,6 +66,9 @@ __all__ = [
     "PluginBase",
     "PluginSignals",
     "PluginState",
+    "PluginContext",
+    "PluginManifest",
+    "UndeclaredCapabilityAccess",
     "AnalysisBase",
     "AnalysisRunnable",
     "AnalysisWorker",

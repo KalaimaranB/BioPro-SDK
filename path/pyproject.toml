@@ -1,0 +1,28 @@
+[project]
+name = "Path"
+version = "1.0.0"
+description = "A high-performance BioPro data plugin analyzing Path."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Developer Name" }
+]
+dependencies = [
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-qt",
+    "ruff",
+    "mkdocs-material"
+]
+
+[tool.biopro.plugin]
+id = "path"
+min_core_version = "1.4.9"
+entry_point = "biopro_plugins.path:initialize"
+requires = ["task_scheduler", "logger", "event_bus"]
+authors = [
+  { name = "Developer Name", role = "Developer", permissions = ["read_workspace", "write_assets"] }
+]

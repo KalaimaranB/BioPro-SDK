@@ -71,12 +71,12 @@ graph TD
 
 ### 🧭 Navigating the Pillars:
 
-1.  **🏁 [Getting Started](Getting_Started.md):** Learn how to prepare your local virtual environment using `uv`, generate onboarding keys, and construct your first signed hello world plugin.
+1.  **🏁 [Quickstart Guide](Getting_Started.md):** Learn how to prepare your local virtual environment using `uv`, generate onboarding keys, bootstrap a new plugin repository, and cryptographically sign your work.
 2.  **📖 [Developer Handbook](Dev_Handbook.md):** Deep technical workflows on layouts, dynamic state binding, persistent local storage, and the PyQt6 event model.
 3.  **🛡️ [CI/CD & Security](CI_CD_Guide.md):** Learn how the BioPro security model signs code, performs integrity checks, and integrates into GitHub Actions workflows.
-4.  **🔍 [API Reference Index](API_Reference.md):** Comprehensive technical references for all submodules:
-    *   **[Core Plugin interfaces](API_Plugin_Base.md):** `PluginBase` and `PluginState`.
-    *   **[UI Toolkit](API_UI_Components.md):** Semantic buttons, wizards, and theme manager adapters.
-    *   **[Background Concurrency](API_Background_Engine.md):** `AnalysisBase` and multi-threaded signals.
-    *   **[Security Cryptography](API_Trust_Cryptography.md):** `TrustManager` and onboarding loaders.
+4.  **🔍 API Reference:** Comprehensive technical references generated directly from the source code:
+    *   **[Plugin Core](api/plugin/base.md):** `PluginBase`, `PluginState`, UI Components, and more.
+    *   **[Host & Trust](api/host/trust.md):** `TrustManager`, Plugin Signing, and AI integration.
+    *   **[Contrib Utils](api/contrib/image_utils.md):** Helpful pure functions for plugin tasks.
+    *   **[Interfaces](api/interfaces.md):** Protocols outlining the boundaries of the SDK.
 5.  **🧠 [Architectural Design](Architectural_Design.md):** Deep dive into the architectural principles (RAII cleanup, DIP preferences, headless QTest event orchestration).

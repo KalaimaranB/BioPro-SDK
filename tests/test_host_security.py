@@ -15,6 +15,44 @@ from biopro_sdk.host.trust_path import TrustChain, TrustLink
 from biopro_sdk.host.trust_storage import TrustCache
 
 
+def _dict_to_toml(d):
+    # Convert flat dict to pyproject.toml format
+    lines = []
+
+    lines.append("[project]")
+    lines.append(f'name = "{d.get("name", "test")}"')
+    lines.append(f'version = "{d.get("version", "1.0.0")}"')
+    if "description" in d:
+        lines.append(f'description = "{d["description"]}"')
+
+    authors = d.get("authors", [])
+    if authors:
+        lines.append("authors = [")
+        for a in authors:
+            lines.append(f'  {{ name = "{a.get("name", "Test")}" }},')
+        lines.append("]")
+
+    lines.append("")
+    lines.append("[tool.biopro.plugin]")
+    lines.append(f'id = "{d.get("id", "test_id")}"')
+
+    if authors:
+        lines.append("authors = [")
+        for a in authors:
+            role = a.get("role", "Developer")
+            perms = a.get("permissions", [])
+            perms_str = '", "'.join(perms)
+            if perms_str:
+                lines.append(
+                    f'  {{ name = "{a.get("name", "Test")}", role = "{role}", permissions = ["{perms_str}"] }},'
+                )
+            else:
+                lines.append(f'  {{ name = "{a.get("name", "Test")}", role = "{role}" }},')
+        lines.append("]")
+
+    return "\n".join(lines)
+
+
 @pytest.fixture
 def temp_sec_env(tmp_path):
     """Setup a pristine local security workspace."""
@@ -154,9 +192,9 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
         "authors": [{"name": "Developer", "role": "Developer", "permissions": ["sign_code"]}],
     }
 
-    with open(plugin_dir / "manifest.json", "w") as f:
-        json.dump(manifest_data, f)
-    manifest_bytes = (plugin_dir / "manifest.json").read_bytes()
+    with open(plugin_dir / "pyproject.toml", "w") as f:
+        f.write(_dict_to_toml(manifest_data))
+    manifest_bytes = (plugin_dir / "pyproject.toml").read_bytes()
     manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
 
     security_data = {
@@ -258,17 +296,18 @@ def test_sign_plugin_direct(tmp_path):
     plugin_dir = tmp_path / "my_plugin"
     plugin_dir.mkdir()
 
-    with open(plugin_dir / "manifest.json", "w") as f:
-        json.dump(
-            {
-                "id": "my_plugin",
-                "name": "My Plugin",
-                "version": "1.0.0",
-                "description": "desc",
-                "manifest_version": 2,
-                "authors": [{"name": "me", "role": "Dev", "permissions": ["sign_code"]}],
-            },
-            f,
+    with open(plugin_dir / "pyproject.toml", "w") as f:
+        f.write(
+            _dict_to_toml(
+                {
+                    "id": "my_plugin",
+                    "name": "My Plugin",
+                    "version": "1.0.0",
+                    "description": "desc",
+                    "manifest_version": 2,
+                    "authors": [{"name": "me", "role": "Dev", "permissions": ["sign_code"]}],
+                }
+            )
         )
 
     (plugin_dir / "code.py").write_text("print(1)")

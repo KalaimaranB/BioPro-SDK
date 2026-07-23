@@ -15,3 +15,9 @@ def get_panel_class() -> type[QWidget]:
     from .wizard import GuidedWizardPanel
 
     return GuidedWizardPanel
+
+
+def initialize(context):
+    """V2 Plugin Entry Point."""
+    panel_class = get_panel_class()
+    return panel_class

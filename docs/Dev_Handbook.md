@@ -10,28 +10,30 @@ All BioPro plugins must follow a structured directory layout. Let's look at the 
 
 ```text
 my_plugin/
-├── manifest.json         # Declarative meta details & assets hashes
-├── __init__.py           # Package entry point resolving get_panel_class()
-└── ui.py                 # Core QWidget GUI logic subclassing PluginBase
+├── pyproject.toml        # Declarative meta details, dependencies, and configuration
+├── src/
+│   ├── __init__.py       # Package entry point and analysis logic
+│   └── ui.py             # Core QWidget GUI logic subclassing PluginBase
+└── docs/
+    └── 01_getting_started.md # Plugin specific documentation
 ```
 
-### 1. Declarative Metadata (`manifest.json`)
-The manifest holds plugin identification details and describes security scopes:
-```json
-{
-    "id": "my_plugin",
-    "name": "My Discovery Tool",
-    "manifest_version": 2,
-    "authors": [
-        {
-            "name": "Dr. Scientist",
-            "role": "Lead Researcher"
-        }
-    ],
-    "version": "1.0.0",
-    "icon": "🧪",
-    "description": "Custom high-throughput gel imaging normalization module."
-}
+### 1. Declarative Metadata (`pyproject.toml`)
+The V2 architecture uses a split-manifest approach, storing the plugin configuration inside the standard Python `pyproject.toml`:
+```toml
+[project]
+name = "my-discovery-tool"
+version = "1.0.0"
+description = "Custom high-throughput gel imaging normalization module."
+requires-python = ">=3.11"
+authors = [
+    { name = "Dr. Scientist" }
+]
+
+[tool.biopro.plugin]
+id = "my_plugin"
+min_core_version = "1.4.9"
+entry_point = "my_plugin:initialize"
 ```
 
 ### 2. Entry Point Connection (`__init__.py`)

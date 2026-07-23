@@ -56,7 +56,6 @@ class TrustManager:
         ".idea",
         ".pytest_cache",
         ".venv",
-        ".plugin_venv",
         "venv",
         "cache",
         "results",
@@ -68,7 +67,7 @@ class TrustManager:
         "signature.bin",
         "project_signature.bin",
         "trust_chain.json",
-        "manifest.json",
+        "pyproject.toml",
         "security.json",
         "dev_cert.bin",
     }
@@ -212,7 +211,7 @@ class TrustManager:
         chain_file = plugin_path / "trust_chain.json"
         sig_file = plugin_path / "signature.bin"
         project_sig_file = plugin_path / "project_signature.bin"
-        manifest_file = plugin_path / "manifest.json"
+        manifest_file = plugin_path / "pyproject.toml"
         security_file = plugin_path / "security.json"
 
         if not chain_file.exists():
@@ -229,8 +228,7 @@ class TrustManager:
         try:
             # 1. Parse & Verify manifest and security ledger Split-Manifest bindings
             parser = ManifestParser()
-            with open(manifest_file, encoding="utf-8") as f:
-                manifest_data = parser.parse(json.load(f))
+            manifest_data = parser.parse_file(manifest_file)
 
             sec_parser = SecurityParser()
             security_data = sec_parser.parse_file(str(security_file))
@@ -391,7 +389,6 @@ class TrustManager:
                 PRUNE_DIRS = {
                     ".venv",
                     "venv",
-                    ".plugin_venv",
                     ".git",
                     "__pycache__",
                     ".idea",
@@ -431,7 +428,7 @@ class TrustManager:
                         "signature.bin",
                         "project_signature.bin",
                         "trust_chain.json",
-                        "manifest.json",
+                        "pyproject.toml",
                         "security.json",
                     ]:
                         continue

@@ -1,6 +1,6 @@
-# 🏁 Getting Started with BioPro SDK
+# 🏁 Quickstart Guide
 
-This step-by-step tutorial walks you through setting up your local environment, generating a cryptographically secure Developer Identity, signing a template plugin, and simulating its execution on the host application.
+This step-by-step tutorial walks you through setting up your local environment, creating a new BioPro module from scratch, understanding the repository structure, and securing it with cryptographic signing.
 
 ---
 
@@ -21,8 +21,8 @@ source .venv/bin/activate
 .venv\Scripts\Activate.ps1
 ```
 
-### 2. Install BioPro SDK in Editable Mode
-Install the SDK and its required graphical dependencies into your virtualenv:
+### 2. Install BioPro SDK
+Install the SDK into your virtual environment:
 ```bash
 uv pip install -e .
 ```
@@ -40,100 +40,83 @@ biopro-sdk init-identity
 ```
 
 ### What happens behind the scenes?
-1.  **Generates an Ed25519 Private Key:** Writes a PKCS#8 pem file to `~/.biopro/id_ed25519`.
-2.  **Establishes Local Trust Override:** Generates a public certificate stub `~/.biopro/dev_cert.bin` which self-signs your developer public key.
-3.  **Bootstraps Onboarding Root:** Places an onboarding certificate into your local trusted registry, ensuring the host application recognizes your work.
+1.  **Generates an Ed25519 Private Key:** Writes a PKCS#8 pem file to `~/.biopro/dev_keys/private.key`.
+2.  **Generates Public Key:** Writes a public certificate stub to `~/.biopro/dev_keys/public.pub`.
+3.  **Local Registration:** The CLI establishes this key pair as your local developer identity for subsequent signing operations.
 
 ---
 
-## 🧪 Step 3: Run the Hello World Sandbox Template
+## 🏗️ Step 3: Bootstrap a New BioPro Module
 
-The SDK comes with ready-made examples. Let's inspect, sign, and load the `hello_world` plugin.
+Instead of creating files manually, you can use the SDK CLI to automatically scaffold a new plugin repository that conforms to the latest V2 architecture.
 
-### 1. View the Manifest
-Every plugin is recognized by its `manifest.json`. Let's inspect `examples/hello_world/manifest.json`:
-```json
-{
-    "id": "hello_world",
-    "name": "Hello World Blueprint",
-    "manifest_version": 2,
-    "authors": [
-        {
-            "name": "BioPro SDK Team",
-            "role": "Lead Developer"
-        }
-    ],
-    "version": "1.0.0",
-    "icon": "🧪",
-    "description": "Minimal plugin blueprint demonstrating PyQt6 widgets and semantic buttons."
-}
-```
-
-### 2. Sign the Plugin
-Before loading, you must cryptographically sign the plugin assets. The CLI will crawl your files, compute a SHA256 integrity tree, and write standard verification block files.
-
-Run the sign utility:
+Run the bootstrap command:
 ```bash
-biopro-sdk sign examples/hello_world
+biopro-sdk bootstrap my_first_plugin
 ```
-**Output:**
+
+### How to Organize a Repo
+The bootstrap command creates the standard directory structure required by BioPro. Let's look at how your repo is organized:
+
 ```text
-Updating manifest.json integrity records...
-Signing plugin assets...
-Successfully signed plugin: hello_world
+my_first_plugin/
+├── pyproject.toml           # The plugin manifest and Python configuration
+├── src/
+│   └── __init__.py          # The core plugin logic and entry point
+├── docs/
+│   └── 01_getting_started.md # Local documentation for your plugin
+└── .github/
+    └── workflows/           # CI/CD pipelines (ci, deploy-docs, release)
 ```
-This generates:
-*   `examples/hello_world/signature.bin` (The cryptographic signature of the canonicalized manifest).
-*   `examples/hello_world/dev_cert.bin` (The developer identity certificate verification stub).
+
+* **`pyproject.toml`**: The split-manifest architecture uses this standard Python file to define your plugin ID, required SDK version, permissions, dependencies, and the `entry_point` for the BioPro host application.
+* **`src/`**: All your Python source code lives here. The `__init__.py` file contains a class inheriting from `AnalysisBase` (or `PluginBase`) which serves as the entry point.
+* **`docs/`**: Markdown documentation files that will be compiled into the BioPro Help Center.
 
 ---
 
-## 🚀 Step 4: Simulate Plugin Execution
+## 🔐 Step 4: Security Signing
 
-To test the loaded widget dynamically in a sandbox emulator, write a simple script:
+Before your plugin can be loaded by the BioPro host application, it must be cryptographically signed. The Trust Engine verifies that the code hasn't been tampered with.
 
-`run_simulator.py`:
-```python
-import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow
-
-from biopro_sdk.host.trust_manager import TrustManager
-from biopro_sdk.host.docs import get_panel_class_for_plugin
-
-def main():
-    app = QApplication(sys.argv)
-
-    plugin_path = "examples/hello_world"
-
-    # 1. Verify cryptographic integrity before loading
-    trust_manager = TrustManager()
-    is_valid, reason = trust_manager.verify_plugin(plugin_path)
-
-    if not is_valid:
-        print(f"ERROR: Plugin verification failed: {reason}")
-        sys.exit(1)
-
-    print("SUCCESS: Cryptographic signature verified successfully!")
-
-    # 2. Dynamically resolve the plugin class
-    panel_class = get_panel_class_for_plugin(plugin_path)
-    panel = panel_class()
-
-    # 3. Mount in MainWindow and display
-    window = QMainWindow()
-    window.setWindowTitle("BioPro Plugin Simulator")
-    window.setCentralWidget(panel)
-    window.resize(600, 400)
-    window.show()
-
-    sys.exit(app.exec())
-
-if __name__ == "__main__":
-    main()
-```
-
-Run your simulator:
+Run the signing utility on your plugin directory:
 ```bash
-PYTHONPATH=src uv run python run_simulator.py
+biopro-sdk sign my_first_plugin
 ```
-This loads your custom theme-compliant GUI dynamically, proving that your developer workspace is fully operational!
+
+### What happens during signing?
+1. **File Hashing:** The CLI crawls your `src/` and other critical directories, computing a SHA-256 integrity hash for every file.
+2. **Ledger Generation:** A `security.json` ledger is generated, binding the hashes of your files to the hash of your `pyproject.toml`.
+3. **Cryptographic Signature:** The ledger is signed with your developer private key, generating `signature.bin`.
+4. **Trust Chain:** A `trust_chain.json` file is created to link your public key to the signature.
+
+Your plugin directory will now have the necessary security assets:
+```text
+my_first_plugin/
+├── pyproject.toml
+├── security.json        # NEW: Integrity hashes
+├── signature.bin        # NEW: Cryptographic signature
+├── trust_chain.json     # NEW: Developer public key chain
+├── src/
+├── docs/
+└── .github/
+```
+
+**Note:** You must re-run `biopro-sdk sign my_first_plugin` *every time* you modify your code before testing it in the host application!
+
+---
+
+## 🚀 Step 5: Validate Your Plugin
+
+To ensure your newly created and signed plugin meets all BioPro SDK standards before distribution, you can run the built-in evaluator:
+
+```bash
+biopro-sdk evaluate my_first_plugin
+```
+
+This will run a 3-part audit:
+1. **Manifest Audit:** Verifies the `pyproject.toml` configuration.
+2. **Structure & SDK Compliance:** Checks that you are properly subclassing BioPro base classes like `AnalysisBase`.
+3. **Security Audit:** Validates that the cryptographic signatures are present and correct.
+
+If you get a green status, your plugin is ready to be loaded into the BioPro host application!

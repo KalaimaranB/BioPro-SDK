@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "biopro-sdk"
-version = "1.2.6"
-description = "Software Development Kit and CLI for BioPro desktop plugins."
+version = "1.2.7"
+description = "Software Development Kit and CLI for BioPro."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -17,12 +17,23 @@ classifiers = [
 ]
 dependencies = [
     "cryptography>=41.0.0",
+    "numpy",
+    "pandas",
+    "pillow>=12.3.0",
     "PyQt6>=6.5.0",
     "requests>=2.28.0",
+    "scikit-image>=0.26.0",
+    "scipy",
+]
+
+[project.optional-dependencies]
+docs = [
+    "mkdocs-material",
+    "mkdocstrings[python]",
 ]
 
 [project.scripts]
-biopro-sdk = "biopro_sdk.sdk_cli:main"
+biopro-sdk = "biopro_sdk.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -85,7 +96,7 @@ ignore = [
 convention = "google"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false

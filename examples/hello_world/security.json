@@ -1,0 +1,10 @@
+{
+    "security_version": 1,
+    "plugin_id": "hello_world",
+    "manifest_hash": "9f83cbc203e2287174ff1ef665d9041d7dcafd57385b251f13a3b35f9e814626",
+    "exclusions": [],
+    "hashes": {
+        "src/__init__.py": "6b03018971300dc74e831a35249530246f239645e1900b00a52146df19beda95",
+        "src/ui.py": "efc0b22d4f0f3425180ceb6250e0bd6d721ff52ea12cce0dff62fb7905b6f42a"
+    }
+}

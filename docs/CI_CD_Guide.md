@@ -10,15 +10,16 @@ To protect researchers from running malicious or corrupted plugins in production
 
 ```mermaid
 graph TD
-    Root[onboarding_roots.bin / trusted_roots.bin] -->|Signs Certificate| Cert[dev_cert.bin Certificate Stub]
-    Cert -->|Signs Manifest| Manifest[manifest.json Integrity Tree]
-    Manifest -->|Computes Hash| Asset[Plugin Asset Files]
+    Root[Trusted Overrides] -->|Trust Chain| Cert[trust_chain.json Developer Certificate]
+    Cert -->|Signs Ledger| Security[security.json Integrity Ledger]
+    Security -->|Binds Configuration| Manifest[pyproject.toml Manifest]
+    Security -->|Computes Hash| Asset[Plugin Asset Files (src/)]
 ```
 
 ### 1. Developer Keys
 When you execute `biopro-sdk init-identity`, the SDK generates an asymmetric **Ed25519** keypair:
-*   **Private Key (`~/.biopro/id_ed25519`):** A secure PKCS#8 PEM-encoded private key file. **CRITICAL:** Keep this file confidential. Never commit it to git repositories or expose it in CI logs.
-*   **Public Key Certificate (`~/.biopro/dev_cert.bin`):** A binary public certificate stub. It binds your public key, metadata (email, author role), and a self-signature matching local override roots.
+*   **Private Key (`~/.biopro/dev_keys/private.key`):** A secure PKCS#8 PEM-encoded private key file. **CRITICAL:** Keep this file confidential. Never commit it to git repositories or expose it in CI logs.
+*   **Public Key Certificate (`~/.biopro/dev_keys/public.pub`):** A public certificate stub. It establishes your developer identity for subsequent signing operations.
 
 ---
 
@@ -30,50 +31,36 @@ biopro-sdk sign <path_to_plugin_dir>
 ```
 
 ### The signing sequence:
-1.  **Integrity Hash Computation:** The CLI indexes all files in your directory (ignoring hidden `.git` metadata and signatures), computes their SHA-256 hashes, and writes an integrity tree mapping directly into the `manifest.json`.
-2.  **Canonical Manifest Signing:** The CLI parses the manifest, canonicalizes it into a standard JSON string format, signs the byte stream using `~/.biopro/id_ed25519`, and writes `signature.bin` to the plugin root.
-3.  **Certificate Bundling:** The CLI copies your local certificate `~/.biopro/dev_cert.bin` directly into the plugin root, sealing your cryptographic identity along with the code.
+1.  **Integrity Hash Computation:** The CLI indexes all files in your `src/` directory, computes their SHA-256 hashes, and writes them into `security.json`, along with the hash of `pyproject.toml`.
+2.  **Ledger Signing:** The CLI signs the `security.json` bytes using your developer private key (`~/.biopro/dev_keys/private.key`), and writes `signature.bin` to the plugin root.
+3.  **Trust Chain Bundling:** The CLI bundles your developer public key into a `trust_chain.json` file inside the plugin root to establish cryptographic identity.
 
 ---
 
-## 🤖 Automated CI/CD Workflow (`test_and_lint.yml`)
+## 🤖 Automated CI/CD Workflows (GitHub Actions)
 
-The SDK includes a modern GitHub Actions workflow at `.github/workflows/test_and_lint.yml` to automatically verify every code push or Pull Request:
+When you run `biopro-sdk bootstrap <plugin_dir>`, the SDK automatically generates three best-practice GitHub Actions workflows in `.github/workflows/` to automate your CI/CD pipeline:
 
-```yaml
-name: Test & Lint Codebase
+### 1. `ci.yml` (Tests & Linting)
+Runs automatically on every push or Pull Request to `main` or `develop`.
+- Installs `uv` and provisions a clean Python environment.
+- Executes `ruff check` for lightning-fast code style validation.
+- Runs `pytest` against your `tests/` directory natively using `uv sync` and virtual environments.
 
-on:
-  push:
-    branches: [ main, dev ]
-  pull_request:
-    branches: [ main ]
+### 2. `deploy-docs.yml` (Documentation)
+Runs on pushes to `main` (or manually).
+- Installs `mkdocs-material` via `uv pip`.
+- Builds your static documentation from the `docs/` folder.
+- Deploys the built site to GitHub Pages automatically.
 
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+### 3. `release.yml` (Auto-Release & Registry)
+Runs automatically when code is pushed to `main` with a bumped version in `pyproject.toml`.
+- Detects new versions using a lightweight `tomllib` parser.
+- Tags the repository and executes `biopro-sdk evaluate` and `biopro-sdk project-sign`.
+- Bundles the plugin into a production-ready `.zip` archive (excluding tests, venvs, and Git history).
+- Creates a GitHub Release with auto-generated release notes.
+- Automatically opens a Pull Request on the central `BioPro-Distribution` repository to update the `registry.json` ledger.
 
-      - name: Install uv & Python
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          python-version: "3.14"
-
-      - name: Install Dependencies
-        run: uv pip install -e .
-
-      - name: Verify Code Style & Formatting
-        run: uv run ruff check src examples && uv run ruff format --check src examples
-
-      - name: Verify Static Types
-        run: uv run mypy src examples
-
-      - name: Execute Test Suite
-        run: uv run --with pytest --with pytest-cov pytest --cov=src --cov-fail-under=90
-```
 
 ---
 

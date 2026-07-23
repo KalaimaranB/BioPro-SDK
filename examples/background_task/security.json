@@ -1,0 +1,12 @@
+{
+    "security_version": 1,
+    "plugin_id": "background_task",
+    "manifest_hash": "54dfadc999dcd565052fb71dab9be861a8b5dfa2f2858a89ebcdcdaffdd2bb77",
+    "exclusions": [],
+    "hashes": {
+        "src/__init__.py": "2bbd0a4d480e9b9c4a8ff5f73a54cb5bde21725162a41b90f568a328388cb32c",
+        "src/engine.py": "0060c85192be26588db255bca8d8f67e57e842d8fad4bcf64ae0b68c90f1f01b",
+        "src/panel.py": "f84cf246e6e6751400891557b62c5007c86a65b480ce6fb5bc1ae020d7a2a225",
+        "src/state.py": "43cc1091de5b7485665728dedd3c0e23d3304fe34749297e53625f28a54a92ee"
+    }
+}

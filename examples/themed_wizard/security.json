@@ -1,0 +1,11 @@
+{
+    "security_version": 1,
+    "plugin_id": "themed_wizard",
+    "manifest_hash": "d9ec494e2685042d31314c1a9942421bb2464f74b8125c594f4ef22852515c95",
+    "exclusions": [],
+    "hashes": {
+        "src/__init__.py": "71289cfb5c22a57868bf6e46a2e0c21ad140887fe12886f76137526fa4886305",
+        "src/config.py": "1308b1b3e7a1717d411434710051d04eb41dd8b535c8d3ceb76a4d328b4d607b",
+        "src/wizard.py": "894883f377d2e7f75106512c09530a38fb80357455f857c303a27436b043e835"
+    }
+}

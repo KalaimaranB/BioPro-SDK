@@ -31,6 +31,12 @@ theme:
 
 plugins:
   - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
 
 markdown_extensions:
   - admonition
@@ -53,9 +59,21 @@ nav:
       - Plugin Development: Dev_Handbook.md
       - Cryptography & CI/CD: CI_CD_Guide.md
   - API Reference:
-      - Master Overview: API_Reference.md
-      - Plugin Core: API_Plugin_Base.md
-      - UI & Custom Widgets: API_UI_Components.md
-      - Background Concurrency: API_Background_Engine.md
-      - Cryptography & Trust: API_Trust_Cryptography.md
+      - Interfaces: api/interfaces.md
+      - Plugin Core:
+          - Base & Interfaces: api/plugin/base.md
+          - Analysis Engine: api/plugin/analysis.md
+          - UI Components: api/plugin/components.md
+          - UI Dialogs: api/plugin/dialogs.md
+          - UI Wizard: api/plugin/wizard.md
+          - State & Config: api/plugin/state_and_config.md
+          - Events & Logging: api/plugin/events_and_logging.md
+          - Parsers (Manifest/Security): api/plugin/parsers.md
+      - Host & Trust Engine:
+          - Trust Manager: api/host/trust.md
+          - AI Server: api/host/ai.md
+      - Contrib Utilities:
+          - Image Utils: api/contrib/image_utils.md
+      - Testing & Contracts: api/testing.md
+      - SDK CLI: api/sdk_cli.md
   - Architecture Deep-Dives: Architectural_Design.md

@@ -81,7 +81,6 @@ IGNORE_LIST = {
     ".idea",
     ".pytest_cache",
     ".venv",
-    ".plugin_venv",
     "venv",
     "cache",
     "results",
@@ -93,7 +92,7 @@ IGNORE_LIST = {
     "signature.bin",
     "project_signature.bin",
     "trust_chain.json",
-    "manifest.json",
+    "pyproject.toml",
     "security.json",
     "dev_cert.bin",
 }
@@ -149,22 +148,20 @@ class PluginSigner:
         private_key = self.load_private_key()
         public_key = private_key.public_key()
 
-        manifest_file = plugin_path / "manifest.json"
+        manifest_file = plugin_path / "pyproject.toml"
         if not manifest_file.exists():
-            raise FileNotFoundError(f"manifest.json not found in {plugin_path}")
+            raise FileNotFoundError(f"pyproject.toml not found in {plugin_path}")
 
         # Parse & Validate manifest using new Split-Manifest strict rules
         parser = ManifestParser()
         try:
-            with open(manifest_file, encoding="utf-8") as f:
-                manifest = json.load(f)
-            parser.parse(manifest)
+            manifest = parser.parse_file(manifest_file)
         except Exception as e:
             raise ValueError(f"Failed manifest parsing: {e}") from e
 
         plugin_id = manifest.get("id")
-        if not plugin_id or plugin_id != plugin_path.name:
-            raise ValueError("Plugin ID in manifest must match the folder name.")
+        if not plugin_id:
+            raise ValueError("Plugin ID is required in manifest.")
 
         logger.info(f"Hashing files for {plugin_id}...")
         custom_excl = {e.rstrip("/") for e in (manifest.get("custom_exclusions") or [])}
@@ -187,7 +184,7 @@ class PluginSigner:
                 if any(file.endswith(ext) for ext in MANDATORY_EXTENSIONS):
                     hashes[rel_path] = self._hash_file(Path(root) / file)
 
-        # Calculate Manifest Hash Binding (Pristine manifest.json exactly as written on disk)
+        # Calculate Manifest Hash Binding (Pristine pyproject.toml exactly as written on disk)
         manifest_bytes = manifest_file.read_bytes()
         manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
 
@@ -250,7 +247,7 @@ class PluginSigner:
         security_file = plugin_path / "security.json"
         signature_file = plugin_path / "signature.bin"
         trust_file = plugin_path / "trust_chain.json"
-        manifest_file = plugin_path / "manifest.json"
+        manifest_file = plugin_path / "pyproject.toml"
 
         if not security_file.exists() or not signature_file.exists() or not trust_file.exists():
             logger.error("Developer signature (signature.bin) or security ledger is missing. Rejecting pipeline.")

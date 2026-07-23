@@ -11,7 +11,7 @@ class SecurityValidationError(Exception):
 
 
 class ManifestHashMismatch(SecurityValidationError):
-    """Raised when the cryptographic binding hash between manifest.json and security.json fails."""
+    """Raised when the cryptographic binding hash between pyproject.toml and security.json fails."""
 
     pass
 
@@ -57,17 +57,17 @@ class SecurityParser:
             raise SecurityValidationError(f"Security file not found: {filepath}") from e
 
     def verify_manifest_binding(self, manifest_filepath: Path, security_data: dict[str, Any]) -> None:
-        """Verify the cryptographic hash binding of manifest.json against security.json."""
+        """Verify the cryptographic hash binding of pyproject.toml against security.json."""
         if not manifest_filepath.exists():
             raise SecurityValidationError(f"Manifest file not found: {manifest_filepath}")
 
-        # Calculate SHA-256 of manifest.json exactly as written on disk
+        # Calculate SHA-256 of pyproject.toml exactly as written on disk
         manifest_bytes = manifest_filepath.read_bytes()
         computed_hash = hashlib.sha256(manifest_bytes).hexdigest()
 
         expected_hash = security_data["manifest_hash"]
         if computed_hash != expected_hash:
             raise ManifestHashMismatch(
-                "Cryptographic bind mismatch: manifest.json SHA-256 does not match security.json manifest_hash. "
+                "Cryptographic bind mismatch: pyproject.toml SHA-256 does not match security.json manifest_hash. "
                 f"Expected: {expected_hash}, Computed: {computed_hash}"
             )

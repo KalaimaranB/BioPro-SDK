@@ -148,7 +148,7 @@ class BioButton(QPushButton):
     def _apply_theme_styles(self) -> None:
         if self.variant == "primary":
             self.setStyleSheet(f"""
-                QPushButton#BioButton_primary {{
+                QPushButton {{
                     background-color: {Colors.ACCENT_PRIMARY};
                     color: {Colors.BG_DARKEST};
                     border: none;
@@ -159,8 +159,8 @@ class BioButton(QPushButton):
                     font-family: {Fonts.FAMILY_UI};
                     {self.custom_css_overrides}
                 }}
-                QPushButton#BioButton_primary:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
-                QPushButton#BioButton_primary:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
+                QPushButton:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
+                QPushButton:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
             """)
 
             if Colors.GLOW_COLOR != "transparent":
@@ -182,7 +182,7 @@ class BioButton(QPushButton):
 
         elif self.variant == "secondary":
             self.setStyleSheet(f"""
-                QPushButton#BioButton_secondary {{
+                QPushButton {{
                     background-color: {Colors.BG_MEDIUM};
                     color: {Colors.FG_PRIMARY};
                     border: 1px solid {Colors.BORDER};
@@ -192,11 +192,11 @@ class BioButton(QPushButton):
                     font-family: {Fonts.FAMILY_UI};
                     {self.custom_css_overrides}
                 }}
-                QPushButton#BioButton_secondary:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
+                QPushButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
             """)
         elif self.variant == "danger":
             self.setStyleSheet(f"""
-                QPushButton#BioButton_danger {{
+                QPushButton {{
                     background-color: #dc3545;
                     color: white;
                     border: none;
@@ -206,7 +206,7 @@ class BioButton(QPushButton):
                     font-weight: bold;
                     {self.custom_css_overrides}
                 }}
-                QPushButton#BioButton_danger:hover {{ background-color: #c82333; }}
+                QPushButton:hover {{ background-color: #c82333; }}
             """)
 
 
