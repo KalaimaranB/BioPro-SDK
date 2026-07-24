@@ -146,68 +146,31 @@ class BioButton(QPushButton):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
-        if self.variant == "primary":
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {Colors.ACCENT_PRIMARY};
-                    color: {Colors.BG_DARKEST};
-                    border: none;
-                    border-radius: 6px;
-                    padding: 10px 20px;
-                    font-size: 13px;
-                    font-weight: bold;
-                    font-family: {Fonts.FAMILY_UI};
-                    {self.custom_css_overrides}
-                }}
-                QPushButton:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
-                QPushButton:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
-            """)
+        self.setProperty("variant", self.variant)
+        self.style().unpolish(self)
+        self.style().polish(self)
 
-            if Colors.GLOW_COLOR != "transparent":
-                from PyQt6.QtGui import QColor
-                from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        if self.custom_css_overrides:
+            self.setStyleSheet(f"QPushButton {{ {self.custom_css_overrides} }}")
+        else:
+            self.setStyleSheet("")
 
-                if self._glow_effect is None:
-                    self._glow_effect = QGraphicsDropShadowEffect(self)
-                    self.setGraphicsEffect(self._glow_effect)
+        if self.variant == "primary" and Colors.GLOW_COLOR != "transparent":
+            from PyQt6.QtGui import QColor
+            from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 
-                if self._glow_effect is not None:
-                    self._glow_effect.setBlurRadius(15)
-                    self._glow_effect.setOffset(0, 0)
-                    self._glow_effect.setColor(QColor(Colors.GLOW_COLOR))
-            else:
-                if self._glow_effect:
-                    self.setGraphicsEffect(None)
-                    self._glow_effect = None
+            if self._glow_effect is None:
+                self._glow_effect = QGraphicsDropShadowEffect(self)
+                self.setGraphicsEffect(self._glow_effect)
 
-        elif self.variant == "secondary":
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {Colors.BG_MEDIUM};
-                    color: {Colors.FG_PRIMARY};
-                    border: 1px solid {Colors.BORDER};
-                    border-radius: 6px;
-                    padding: 10px 20px;
-                    font-size: 13px;
-                    font-family: {Fonts.FAMILY_UI};
-                    {self.custom_css_overrides}
-                }}
-                QPushButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
-            """)
-        elif self.variant == "danger":
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #dc3545;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    padding: 8px 16px;
-                    font-size: 13px;
-                    font-weight: bold;
-                    {self.custom_css_overrides}
-                }}
-                QPushButton:hover {{ background-color: #c82333; }}
-            """)
+            if self._glow_effect is not None:
+                self._glow_effect.setBlurRadius(15)
+                self._glow_effect.setOffset(0, 0)
+                self._glow_effect.setColor(QColor(Colors.GLOW_COLOR))
+        else:
+            if self._glow_effect:
+                self.setGraphicsEffect(None)
+                self._glow_effect = None
 
 
 class PrimaryButton(BioButton):
@@ -246,25 +209,13 @@ class BioToggleButton(QPushButton):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
-        self.setStyleSheet(f"""
-            QPushButton#BioToggleButton {{
-                background-color: {Colors.BG_MEDIUM};
-                color: {Colors.FG_PRIMARY};
-                border: 1px solid {Colors.BORDER};
-                border-radius: 6px;
-                padding: 10px 20px;
-                font-size: 13px;
-                font-family: {Fonts.FAMILY_UI};
-                {self.custom_css_overrides}
-            }}
-            QPushButton#BioToggleButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
-            QPushButton#BioToggleButton:checked {{
-                background-color: {Colors.ACCENT_PRIMARY};
-                color: {Colors.BG_DARKEST};
-                border: none;
-                font-weight: bold;
-            }}
-        """)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+        if self.custom_css_overrides:
+            self.setStyleSheet(f"QPushButton#BioToggleButton {{ {self.custom_css_overrides} }}")
+        else:
+            self.setStyleSheet("")
 
 
 class BioRunButton(PrimaryButton):
