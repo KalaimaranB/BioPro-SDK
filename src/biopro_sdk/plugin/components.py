@@ -37,6 +37,7 @@ except ImportError:
         BORDER = "#333333"
         BG_LIGHT = "#252525"
         FG_PRIMARY = "#FFFFFF"
+        BORDER_FOCUS = "#007ACC"
 
     class FallbackFonts:
         FAMILY_UI = "Segoe UI, Arial"
