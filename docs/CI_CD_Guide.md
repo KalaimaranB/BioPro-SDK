@@ -10,10 +10,10 @@ To protect researchers from running malicious or corrupted plugins in production
 
 ```mermaid
 graph TD
-    Root[Trusted Overrides] -->|Trust Chain| Cert[trust_chain.json Developer Certificate]
-    Cert -->|Signs Ledger| Security[security.json Integrity Ledger]
-    Security -->|Binds Configuration| Manifest[pyproject.toml Manifest]
-    Security -->|Computes Hash| Asset[Plugin Asset Files (src/)]
+    Root["Trusted Overrides"] -->|Trust Chain| Cert["trust_chain.json Developer Certificate"]
+    Cert -->|Signs Ledger| Security["security.json Integrity Ledger"]
+    Security -->|Binds Configuration| Manifest["pyproject.toml Manifest"]
+    Security -->|Computes Hash| Asset["Plugin Asset Files (src/)"]
 ```
 
 ### 1. Developer Keys

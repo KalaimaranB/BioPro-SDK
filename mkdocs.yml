@@ -56,6 +56,7 @@ nav:
   - Welcome: index.md
   - Getting Started: Getting_Started.md
   - Developer Guides:
+      - Onboarding Guide: Developer_Onboarding.md
       - Plugin Development: Dev_Handbook.md
       - Cryptography & CI/CD: CI_CD_Guide.md
   - API Reference:

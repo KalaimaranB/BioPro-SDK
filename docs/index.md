@@ -55,13 +55,15 @@ To get started quickly, follow these curated pathways:
 
 ```mermaid
 graph TD
-    A[Welcome Portal] -->|Quick Setup| B[1. Getting Started]
-    A -->|Build Interfaces| C[2. Developer Handbook]
-    A -->|Signing & Deployment| D[3. Cryptography & CI/CD]
-    A -->|API Blueprints| E[4. API Reference Overview]
-    A -->|Architecture| F[5. Architecture Deep Dive]
+    A["Welcome Portal"] -->|Start Here| Z["0. Onboarding Guide"]
+    Z -->|Quick Setup| B["1. Getting Started"]
+    A -->|Build Interfaces| C["2. Developer Handbook"]
+    A -->|Signing & Deployment| D["3. Cryptography & CI/CD"]
+    A -->|API Blueprints| E["4. API Reference Overview"]
+    A -->|Architecture| F["5. Architecture Deep Dive"]
 
     style A fill:#4CC9F0,stroke:#4CC9F0,stroke-width:2px,color:#fff
+    style Z fill:#4361EE,stroke:#4361EE,stroke-width:2px,color:#fff
     style B fill:#4895EF,stroke:#4895EF,stroke-width:2px,color:#fff
     style C fill:#4895EF,stroke:#4895EF,stroke-width:2px,color:#fff
     style D fill:#560BAD,stroke:#560BAD,stroke-width:2px,color:#fff
@@ -71,6 +73,7 @@ graph TD
 
 ### 🧭 Navigating the Pillars:
 
+0.  **🚀 [Developer Onboarding](Developer_Onboarding.md):** The ultimate master guide for new and existing V1 developers migrating to the BioPro V2 architecture. Start here!
 1.  **🏁 [Quickstart Guide](Getting_Started.md):** Learn how to prepare your local virtual environment using `uv`, generate onboarding keys, bootstrap a new plugin repository, and cryptographically sign your work.
 2.  **📖 [Developer Handbook](Dev_Handbook.md):** Deep technical workflows on layouts, dynamic state binding, persistent local storage, and the PyQt6 event model.
 3.  **🛡️ [CI/CD & Security](CI_CD_Guide.md):** Learn how the BioPro security model signs code, performs integrity checks, and integrates into GitHub Actions workflows.

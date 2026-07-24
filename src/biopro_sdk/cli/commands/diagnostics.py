@@ -46,13 +46,28 @@ def evaluate_plugin(args) -> bool:
     from biopro_sdk.plugin.manifest_parser import ManifestParser
 
     print("Running Plugin Diagnostics Evaluator (evaluate)...")
-    _app = QApplication(sys.argv)
+    _app = QApplication.instance() or QApplication(sys.argv)
     logging.basicConfig(level=logging.INFO)
 
     try:
         parser = ManifestParser()
         manifest = parser.parse_file(str(Path(args.plugin_dir) / "pyproject.toml"))
         print(f"Manifest parsed successfully: {manifest.get('id')} v{manifest.get('version')}")
+
+        dependencies = manifest.get("python_dependencies") or manifest.get("dependencies", {})
+        if dependencies:
+            print("Auditing Plugin Dependencies...")
+            all_pinned = True
+            for dep, version in dependencies.items():
+                if any(c in version for c in (">", "<", "*", "^", "~")):
+                    print(f"WARNING: Dependency '{dep}' is not pinned. Recommend exact pinning.")
+                    all_pinned = False
+                else:
+                    print(f"Dependency '{dep}' is pinned to version '{version}'")
+
+            if all_pinned:
+                print("All declared dependencies are securely pinned.")
+
         return True
     except Exception as e:
         print(f"Evaluation failed: {e}")
