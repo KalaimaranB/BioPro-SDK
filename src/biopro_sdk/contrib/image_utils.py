@@ -393,7 +393,7 @@ def auto_detect_rotation(
     return round(best_angle, 2)
 
 
-def calculate_band_crop_region(  # noqa: C901, PLR0912, PLR0913, PLR0915
+def calculate_band_crop_region(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917
     image: NDArray[np.float64],
     dark_threshold: float | None = None,
     min_band_width_frac: float = 0.025,
@@ -544,7 +544,7 @@ def calculate_band_crop_region(  # noqa: C901, PLR0912, PLR0913, PLR0915
     return (int(final_r_min), int(final_r_max), int(final_c_min), int(final_c_max))
 
 
-def auto_crop_to_bands(  # noqa: PLR0913
+def auto_crop_to_bands(  # noqa: PLR0913, PLR0917
     image: NDArray[np.float64],
     dark_threshold: float | None = None,
     min_band_width_frac: float = 0.025,

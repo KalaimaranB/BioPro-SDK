@@ -194,7 +194,7 @@ class AIAssistant:
         self.history: list[dict[str, str]] = []  # Keep track of conversation
         self.host_docs_dir = Path(host_docs_dir) if host_docs_dir else None
 
-    def ask_question(  # noqa: C901, PLR0912, PLR0913, PLR0915
+    def ask_question(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917
         self,
         prompt: str,
         plugin_id: str | None = None,
