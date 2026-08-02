@@ -65,7 +65,7 @@ class AIServerManager:
         # Run the actual startup logic in a thread to keep UI alive
         threading.Thread(target=self._start_server_internal, daemon=True).start()
 
-    def _start_server_internal(self) -> None:
+    def _start_server_internal(self) -> None:  # noqa: C901
         """The actual blocking startup and polling logic."""
         import socket
 
@@ -76,7 +76,7 @@ class AIServerManager:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 if s.connect_ex(("127.0.0.1", 8080)) == 0:
                     res = requests.get("http://localhost:8080/v1/models", timeout=2)
-                    if res.status_code == 200:
+                    if res.status_code == 200:  # noqa: PLR2004
                         self.logger.info("Healthy AI Server already running on 8080. Reusing.")
                         self._is_running = True
                         self.signals.server_started.emit()
@@ -122,7 +122,7 @@ class AIServerManager:
 
                 try:
                     res = requests.get("http://localhost:8080/v1/models", timeout=1)
-                    if res.status_code == 200:
+                    if res.status_code == 200:  # noqa: PLR2004
                         self._is_running = True
                         self.signals.server_started.emit()
                         self.logger.info("AI Server is ready.")
@@ -168,7 +168,7 @@ class AIServerManager:
                 if s.connect_ex(("127.0.0.1", 8080)) == 0:
                     try:
                         res = requests.get("http://localhost:8080/v1/models", timeout=0.3)
-                        if res.status_code == 200:
+                        if res.status_code == 200:  # noqa: PLR2004
                             self._is_running = True
                             return True
                     except:
@@ -194,7 +194,7 @@ class AIAssistant:
         self.history: list[dict[str, str]] = []  # Keep track of conversation
         self.host_docs_dir = Path(host_docs_dir) if host_docs_dir else None
 
-    def ask_question(
+    def ask_question(  # noqa: C901, PLR0912, PLR0913, PLR0915
         self,
         prompt: str,
         plugin_id: str | None = None,
@@ -258,7 +258,7 @@ class AIAssistant:
                 stream=stream,
             )
 
-            if response.status_code == 200:
+            if response.status_code == 200:  # noqa: PLR2004
                 if stream:
                     import json
 
@@ -293,7 +293,7 @@ class AIAssistant:
                 self.history.append({"role": "assistant", "content": reply})
 
                 # Prune history if it gets too long (keeping last 10 exchanges)
-                if len(self.history) > 20:
+                if len(self.history) > 20:  # noqa: PLR2004
                     self.history = self.history[-20:]
 
                 return {"result": reply, "sources": sources}
@@ -308,7 +308,7 @@ class AIAssistant:
         except Exception as e:
             return {"result": f"Error communicating with AI: {str(e)}", "sources": []}
 
-    def _gather_context(
+    def _gather_context(  # noqa: C901, PLR0912
         self,
         prompt: str,
         plugin_id: str | None,
@@ -320,7 +320,7 @@ class AIAssistant:
         context_parts = []
         sources = []
         base_dir = Path(__file__).parent.parent.parent.parent
-        prompt_keywords = [w.lower() for w in prompt.split() if len(w) > 3]
+        prompt_keywords = [w.lower() for w in prompt.split() if len(w) > 3]  # noqa: PLR2004
 
         limit_chars = 20000  # Calculated for 8k token window
         pinned_filenames = ["01_User_Guide.md", "02_Getting_Started.md"]

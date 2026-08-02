@@ -61,10 +61,13 @@ class ManifestParser:
                 "name": project.get("name"),
                 "version": project.get("version"),
                 "description": project.get("description"),
+                "core_dependencies": project.get("dependencies", []),
             }
             flat_manifest.update(plugin)
 
-            # Ensure authors is set if not provided in tool.biopro.plugin
+            # Ensure display_name and authors are set
+            if "display_name" not in flat_manifest:
+                flat_manifest["display_name"] = flat_manifest.get("name", "Unknown")
             if "authors" not in flat_manifest:
                 flat_manifest["authors"] = project.get("authors", [])
 

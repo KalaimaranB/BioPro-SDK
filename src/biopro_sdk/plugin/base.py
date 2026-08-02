@@ -256,6 +256,54 @@ class PluginBase(QWidget):
         """Default shutdown. Subclasses should override if managing GPU models."""
         pass
 
+    # ── Two-phase loading protocol ────────────────────────────────────
+    #
+    # Opt-in protocol for panels that support smooth animated loading.
+    # BioPro's PluginLoaderManager detects it via ``hasattr(panel, 'panel_ready')``.
+    #
+    # To implement, subclass must ALSO declare these class-level PyQt signals:
+    #
+    #   panel_ready = pyqtSignal()
+    #       Emitted after Phase 2 heavy widgets are built.
+    #       PluginLoaderManager updates the loader message to "Loading workspace data…".
+    #
+    #   data_ready = pyqtSignal()   # OPTIONAL
+    #       Emitted when ALL background data processing is done and the first
+    #       meaningful render is complete.  PluginLoaderManager cross-fades the
+    #       GalacticLoader into the fully-populated workspace only after this fires.
+    #       If omitted, the loader cross-fades immediately after ``panel_ready``.
+    #       SIGNAL ORDER RULE: panel_ready MUST ALWAYS be emitted before data_ready.
+    #       A 45-second safety timeout is always armed as a fallback.
+    #
+    # Phase 2 best practices
+    # -----------------------
+    # Avoid building all heavy widgets in one synchronous block.  Instead chain
+    # construction via ``QTimer.singleShot(0, next_step)`` so the Qt event loop
+    # (and thus the QML GalacticLoader animation) gets a frame between each widget.
+    #
+    # Deferred workflow loading
+    # -------------------------
+    # PluginLoaderManager stores the pending workflow payload on
+    # ``panel._deferred_workflow_payload`` before calling ``begin_async_init``.
+    # Check for that attribute at the end of your Phase 2 chain and call
+    # ``self.load_workflow(self._deferred_workflow_payload, ...)`` there so that
+    # ``panel_ready`` is emitted AFTER FCS data is in memory.
+
+    def begin_async_init(self) -> None:
+        """Override to implement the two-phase loading protocol.
+
+        Called by ``PluginLoaderManager`` immediately after the skeleton panel
+        is added to the layout.  The default no-op preserves backward compatibility
+        for panels that do not need the protocol.
+
+        Subclasses that override this method MUST also declare:
+        - ``panel_ready = pyqtSignal()`` on the class
+        - Optionally: ``data_ready = pyqtSignal()`` for async data gating
+
+        See the class-level docstring above for full protocol details.
+        """
+        pass  # Default: no-op — detection key is hasattr(panel, 'panel_ready')
+
     def _apply_theme_styles(self) -> None:
         """Re-applies theme-aware styles to the plugin.
 

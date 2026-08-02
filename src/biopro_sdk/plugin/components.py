@@ -4,6 +4,8 @@ Provides pre-styled button and component classes that respect the active theme
 and maintain visual consistency across all plugins.
 """
 
+import sys
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -22,44 +24,27 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-try:
-    from biopro.ui.theme import Colors, Fonts, theme_manager
-except ImportError:
 
-    class FallbackColors:
-        ACCENT_PRIMARY = "#007ACC"
-        BG_DARKEST = "#121212"
-        ACCENT_PRIMARY_HOVER = "#005999"
-        BG_MEDIUM = "#1E1E1E"
-        FG_SECONDARY = "#888888"
-        GLOW_COLOR = "transparent"
-        BG_DARK = "#1A1A1A"
-        BORDER = "#333333"
-        BG_LIGHT = "#252525"
-        FG_PRIMARY = "#FFFFFF"
-        BORDER_FOCUS = "#007ACC"
+def _get_theme_tokens():
+    if "biopro.ui.theme" in sys.modules:
+        tm = sys.modules["biopro.ui.theme"]
+        return tm.Colors, tm.Fonts, tm.theme_manager
+    try:
+        from biopro.ui.theme import Colors, Fonts, theme_manager
 
-    class FallbackFonts:
-        FAMILY_UI = "Segoe UI, Arial"
-        FAMILY_HEADINGS = "Segoe UI, Arial"
-        SIZE_LARGE = 18
-        SIZE_NORMAL = 13
-        SIZE_SMALL = 11
+        return Colors, Fonts, theme_manager
+    except ImportError:
+        from biopro_sdk.plugin.theme_fallback import Colors, Fonts, theme_manager
 
-    Colors = FallbackColors
-    Fonts = FallbackFonts
+        return Colors, Fonts, theme_manager
 
-    class MockThemeManager:
-        class MockSignal:
-            def connect(self, callback):
-                pass
 
-        theme_changed = MockSignal()
-
-    theme_manager = MockThemeManager()
+Colors, Fonts, theme_manager = _get_theme_tokens()
 
 
 def _connect_theme_signal(callback):
+    global Colors, Fonts, theme_manager
+    Colors, Fonts, theme_manager = _get_theme_tokens()
     theme_manager.theme_changed.connect(callback)
     callback()
 
@@ -75,13 +60,13 @@ def _apply_global_sdk_styles() -> None:
     if not isinstance(app, QApplication):
         return
 
+    Colors, Fonts, _ = _get_theme_tokens()
+
     # --- 0. Enforce Fusion Style Engine ---
     # macOS native style engine heavily ignores custom background colors for native containers (tooltips, dropdowns).
     # Forcing Fusion ensures our theme correctly styles everything cross-platform.
     app.setStyle("Fusion")
 
-    # --- 1. Enforce Dark Palette Globally ---
-    # This ensures native OS wrappers (like macOS dropdown menus) use dark backgrounds instead of white.
     palette = app.palette()
     palette.setColor(QPalette.ColorRole.Window, QColor(Colors.BG_DARK))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(Colors.FG_PRIMARY))
@@ -147,12 +132,56 @@ class BioButton(QPushButton):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        global Colors, Fonts
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setProperty("variant", self.variant)
         self.style().unpolish(self)
         self.style().polish(self)
 
         if self.custom_css_overrides:
             self.setStyleSheet(f"QPushButton {{ {self.custom_css_overrides} }}")
+        elif self.variant == "primary":
+            css = f"""
+                    QPushButton {{
+                        background-color: {Colors.ACCENT_PRIMARY};
+                        color: {Colors.BG_DARKEST};
+                        border: none;
+                        border-radius: 6px;
+                        padding: 10px 20px;
+                        font-size: 13px;
+                        font-weight: bold;
+                    }}
+                    QPushButton:hover {{ background-color: {Colors.ACCENT_PRIMARY_HOVER}; }}
+                    QPushButton:disabled {{ background-color: {Colors.BG_MEDIUM}; color: {Colors.FG_SECONDARY}; }}
+                """
+            self.setStyleSheet(css)
+        elif self.variant == "secondary":
+            css = f"""
+                    QPushButton {{
+                        background-color: {Colors.BG_MEDIUM};
+                        color: {Colors.FG_PRIMARY};
+                        border: 1px solid {Colors.BORDER};
+                        border-radius: 6px;
+                        padding: 10px 20px;
+                        font-size: 13px;
+                    }}
+                    QPushButton:hover {{ background-color: {Colors.BG_LIGHT}; border-color: {Colors.FG_SECONDARY}; }}
+                """
+            self.setStyleSheet(css)
+        elif self.variant == "danger":
+            css = f"""
+                    QPushButton {{
+                        background-color: {Colors.ACCENT_DANGER};
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        padding: 8px 16px;
+                        font-size: 13px;
+                        font-weight: bold;
+                    }}
+                    QPushButton:hover {{ background-color: {Colors.ACCENT_CRITICAL}; }}
+                """
+            self.setStyleSheet(css)
         else:
             self.setStyleSheet("")
 
@@ -168,10 +197,9 @@ class BioButton(QPushButton):
                 self._glow_effect.setBlurRadius(15)
                 self._glow_effect.setOffset(0, 0)
                 self._glow_effect.setColor(QColor(Colors.GLOW_COLOR))
-        else:
-            if self._glow_effect:
-                self.setGraphicsEffect(None)
-                self._glow_effect = None
+        elif self._glow_effect:
+            self.setGraphicsEffect(None)
+            self._glow_effect = None
 
 
 class PrimaryButton(BioButton):
@@ -437,6 +465,7 @@ class BioComboBox(QComboBox):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setStyleSheet(f"""
             QComboBox {{
                 combobox-popup: 0;
@@ -450,7 +479,7 @@ class BioComboBox(QComboBox):
                 border-left: 1px solid {Colors.BORDER};
             }}
             QComboBox QAbstractItemView {{
-                background-color: {Colors.BG_MEDIUM};
+                background-color: {Colors.BG_DARKEST};
                 color: {Colors.FG_PRIMARY};
                 selection-background-color: {Colors.ACCENT_PRIMARY};
                 selection-color: {Colors.BG_DARKEST};
@@ -460,12 +489,14 @@ class BioComboBox(QComboBox):
                 padding: 2px;
             }}
             QComboBox QAbstractItemView::item {{
+                color: {Colors.FG_PRIMARY};
                 min-height: 24px;
                 padding: 2px 4px;
                 border-radius: 2px;
             }}
             QComboBox QAbstractItemView::item:hover {{
-                background-color: {Colors.BG_LIGHT};
+                background-color: {Colors.BG_MEDIUM};
+                color: {Colors.FG_PRIMARY};
             }}
             QComboBox QAbstractItemView::item:selected {{
                 background-color: {Colors.ACCENT_PRIMARY};
@@ -482,6 +513,7 @@ class BioSpinBox(QSpinBox):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setStyleSheet(f"""
             QSpinBox {{
                 background-color: {Colors.BG_MEDIUM};
@@ -501,6 +533,7 @@ class BioDoubleSpinBox(QDoubleSpinBox):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setStyleSheet(f"""
             QDoubleSpinBox {{
                 background-color: {Colors.BG_MEDIUM};
@@ -520,6 +553,7 @@ class BioLineEdit(QLineEdit):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setStyleSheet(f"""
             QLineEdit {{
                 background-color: {Colors.BG_MEDIUM};
@@ -539,12 +573,16 @@ class BioListWidget(QListWidget):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setStyleSheet(f"""
             QListWidget {{
                 background-color: transparent;
                 color: {Colors.FG_PRIMARY};
                 border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
+            }}
+            QListWidget::item {{
+                color: {Colors.FG_PRIMARY};
             }}
             QListWidget::item:selected {{
                 background-color: {Colors.ACCENT_PRIMARY};
@@ -561,6 +599,7 @@ class BioTableWidget(QTableWidget):
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
         self.setStyleSheet(f"""
             QTableWidget {{
                 background-color: transparent;

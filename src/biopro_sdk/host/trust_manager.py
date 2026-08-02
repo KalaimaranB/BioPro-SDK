@@ -117,7 +117,7 @@ class TrustManager:
         """Manually accepts a developer as a personal trust anchor."""
         try:
             pub_bytes = bytes.fromhex(public_key_hex)
-            if len(pub_bytes) != 32:
+            if len(pub_bytes) != 32:  # noqa: PLR2004
                 return False
 
             roots_dir = Path.home() / ".biopro" / "trusted_roots"
@@ -213,7 +213,7 @@ class TrustManager:
                 calculated_hashes=integrity_result.calculated_hashes if "integrity_result" in locals() else None,
             )
 
-    def _verify_signatures(self, plugin_path: Path) -> VerificationResult:
+    def _verify_signatures(self, plugin_path: Path) -> VerificationResult:  # noqa: C901, PLR0911, PLR0912, PLR0915
         """Verifies multi-level trust chains, double-signing, and Signing RBAC."""
         chain_file = plugin_path / "trust_chain.json"
         sig_file = plugin_path / "signature.bin"
@@ -370,7 +370,7 @@ class TrustManager:
         except Exception as e:
             return VerificationResult(success=False, error_message=f"Chain Verification Error: {str(e)}")
 
-    def _check_integrity(self, plugin_path: Path) -> VerificationResult:
+    def _check_integrity(self, plugin_path: Path) -> VerificationResult:  # noqa: C901, PLR0912
         """Verifies every file against the signed security hashes and performs covert backdoor audits."""
         try:
             security_file = plugin_path / "security.json"

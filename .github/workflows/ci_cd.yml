@@ -130,3 +130,87 @@ jobs:
       - name: Publish to PyPI
         if: env.TAG_EXISTS == 'false'
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Build SDK ZIP Archive
+        if: env.TAG_EXISTS == 'false'
+        run: |
+          ZIP_NAME="biopro_sdk_v${{ env.VERSION }}.zip"
+          zip -r "$ZIP_NAME" . \
+            --exclude "*.git*" \
+            --exclude "*tests/*" \
+            --exclude "*__pycache__/*" \
+            --exclude "*.venv/*" \
+            --exclude "*.DS_Store" \
+            --exclude "*.pytest_cache/*" \
+            --exclude "*.github/*"
+
+      - name: Create GitHub Release for ZIP
+        if: env.TAG_EXISTS == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ env.VERSION }}"
+          name: "BioPro SDK v${{ env.VERSION }}"
+          generate_release_notes: true
+          files: "biopro_sdk_v${{ env.VERSION }}.zip"
+
+      - name: Calculate SHA256 Hash
+        if: env.TAG_EXISTS == 'false'
+        id: hash
+        run: |
+          ZIP_NAME="biopro_sdk_v${{ env.VERSION }}.zip"
+          SHA256=$(sha256sum "$ZIP_NAME" | awk '{ print $1 }')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+
+      - name: Checkout BioPro-Distribution
+        if: env.TAG_EXISTS == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: KalaimaranB/BioPro-Distribution
+          token: ${{ secrets.DIST_PAT }}
+          path: dist-repo
+
+      - name: Update registry.json
+        if: env.TAG_EXISTS == 'false'
+        run: |
+          cd dist-repo
+          python3 - <<'EOF2'
+          import json, sys
+
+          with open("registry.json") as f:
+              reg = json.load(f)
+
+          new_version = "${{ env.VERSION }}"
+          sha256 = "${{ steps.hash.outputs.sha256 }}"
+          tag_name = f"v{new_version}"
+          zip_name = f"biopro_sdk_{tag_name}.zip"
+          download_url = f"https://github.com/${{ github.repository }}/releases/download/{tag_name}/{zip_name}"
+
+          reg["sdk"] = {
+              "version": new_version,
+              "download_url": download_url,
+              "sha256": sha256
+          }
+
+          with open("registry.json", "w") as f:
+              json.dump(reg, f, indent=2)
+          print(f"Updated sdk in registry.json")
+          EOF2
+
+      - name: Open Registry Update PR
+        if: env.TAG_EXISTS == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.DIST_PAT }}
+          path: dist-repo
+          branch: "auto/update-sdk-v${{ env.VERSION }}"
+          title: "chore: bump sdk to v${{ env.VERSION }}"
+          commit-message: "chore: bump sdk to ${{ env.VERSION }}"
+          body: |
+            ## Automated Registry Update
+
+            SDK was released at tag `v${{ env.VERSION }}`.
+
+            This PR updates `registry.json` with the latest version.
+
+            > ⚠️ **Review before merging:** Verify the download URL is correct and the ZIP is valid.
+          add-paths: registry.json

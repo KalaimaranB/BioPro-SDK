@@ -207,7 +207,7 @@ def get_text(parent=None, title: str = "", label: str = "", default: str = "") -
     return text if ok else None
 
 
-def get_number(
+def get_number(  # noqa: PLR0913
     parent=None,
     title: str = "",
     label: str = "",
@@ -232,7 +232,7 @@ def get_number(
     return num if ok else None
 
 
-def get_double(
+def get_double(  # noqa: PLR0913
     parent=None,
     title: str = "",
     label: str = "",

@@ -28,6 +28,7 @@ from .components import (
     apply_component_style,
 )
 from .context import PluginContext, UndeclaredCapabilityAccess
+from .daemon import PluginDaemon
 from .dialogs import (
     ask_ok_cancel,
     ask_yes_no,
@@ -64,6 +65,7 @@ from .workflow import WorkflowAttachment, WorkflowContext
 __all__ = [
     # Base and Core
     "PluginBase",
+    "PluginDaemon",
     "PluginSignals",
     "PluginState",
     "PluginContext",

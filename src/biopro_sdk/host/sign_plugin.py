@@ -143,7 +143,7 @@ class PluginSigner:
                 raise TypeError("Key is not a valid Ed25519PrivateKey")
             return key
 
-    def sign_plugin(self, plugin_path: Path):
+    def sign_plugin(self, plugin_path: Path):  # noqa: C901, PLR0915
         """Generates security.json with manifest binding hash and creates signature.bin."""
         private_key = self.load_private_key()
         public_key = private_key.public_key()
@@ -342,7 +342,7 @@ class PluginSigner:
 
         with open(subject_pub_file, "rb") as f:
             sub_pub_bytes = f.read()
-            if len(sub_pub_bytes) != 32:
+            if len(sub_pub_bytes) != 32:  # noqa: PLR2004
                 try:
                     pub = serialization.load_pem_public_key(sub_pub_bytes)
                     sub_pub_bytes = pub.public_bytes(

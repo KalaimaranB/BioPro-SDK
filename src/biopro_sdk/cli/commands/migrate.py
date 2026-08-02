@@ -9,7 +9,7 @@ def setup_migrate_parser(subparsers):
     migrate_parser.set_defaults(func=migrate_plugin)
 
 
-def migrate_plugin(args) -> bool:
+def migrate_plugin(args) -> bool:  # noqa: C901
     """Migrate a legacy plugin to the new architecture (pyproject.toml, src/ layout)."""
     print(f"Migrating legacy plugin at {args.plugin_dir} to new SDK architecture...")
 
@@ -98,7 +98,7 @@ authors = [
     # Move all .py files except setup.py to the new package directory
     py_files_moved = 0
     for file in p_dir.glob("*.py"):
-        if file.name != "setup.py" and file.name != "conftest.py":
+        if file.name not in {"setup.py", "conftest.py"}:
             print(f"   -> Moving {file.name} to {plugin_pkg_dir.relative_to(p_dir)}")
             file.rename(plugin_pkg_dir / file.name)
             py_files_moved += 1

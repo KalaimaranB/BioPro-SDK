@@ -124,10 +124,9 @@ class SandboxCacheService(ISandboxCacheService):
             target = self.base_dir / safe_plugin_id
             if target.exists():
                 shutil.rmtree(target)
-        else:
-            if self.base_dir.exists():
-                shutil.rmtree(self.base_dir)
-                self.base_dir.mkdir(parents=True, exist_ok=True)
+        elif self.base_dir.exists():
+            shutil.rmtree(self.base_dir)
+            self.base_dir.mkdir(parents=True, exist_ok=True)
 
 
 class AssetVerifier(IAssetVerifier):

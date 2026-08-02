@@ -1,0 +1,102 @@
+"""Unit tests for biopro_sdk.plugin.daemon.PluginDaemon."""
+
+import pytest
+
+from biopro_sdk.plugin.daemon import PluginDaemon
+
+
+@pytest.fixture
+def mock_daemon_script(tmp_path):
+    """Create a temporary Python script that acts as a mock daemon worker."""
+    script_path = tmp_path / "mock_worker.py"
+    code = """
+import sys
+import struct
+import msgpack
+
+def write_frame(data):
+    payload = msgpack.packb(data, use_bin_type=True)
+    header = struct.pack('>I', len(payload))
+    sys.stdout.buffer.write(header + payload)
+    sys.stdout.buffer.flush()
+
+def read_frame():
+    header = sys.stdin.buffer.read(4)
+    if not header or len(header) < 4:
+        return None
+    length = struct.unpack('>I', header)[0]
+    payload = sys.stdin.buffer.read(length)
+    return msgpack.unpackb(payload, raw=False)
+
+def main():
+    write_frame({"status": "ready"})
+    while True:
+        frame = read_frame()
+        if not frame:
+            break
+        method = frame.get("method")
+        kwargs = frame.get("kwargs", {})
+
+        if method == "exit":
+            break
+        elif method == "ping":
+            write_frame({"status": "pong"})
+        elif method == "echo":
+            write_frame({"status": "ok", "echo": kwargs.get("msg")})
+        elif method == "crash":
+            sys.exit(1)
+        elif method == "slow":
+            time.sleep(0.5)
+            write_frame({"status": "ok", "done": True})
+        else:
+            write_frame({"error": f"Unknown method {method}"})
+
+if __name__ == "__main__":
+    main()
+"""
+    script_path.write_text(code, encoding="utf-8")
+    return script_path
+
+
+def test_daemon_singleton_and_lifecycle(mock_daemon_script):
+    plugin_id = "test_plugin_singleton"
+    daemon = PluginDaemon.get_instance(plugin_id, daemon_script_path=mock_daemon_script)
+    assert daemon is PluginDaemon.get_instance(plugin_id)
+
+    res = daemon.call("ping", {})
+    assert res == {"status": "pong"}
+
+    res_echo = daemon.call("echo", {"msg": "hello_world"})
+    assert res_echo == {"status": "ok", "echo": "hello_world"}
+
+    PluginDaemon.stop_instance(plugin_id)
+    assert daemon._proc is None
+
+
+def test_daemon_cancellation(mock_daemon_script):
+    plugin_id = "test_plugin_cancel"
+    daemon = PluginDaemon.get_instance(plugin_id, daemon_script_path=mock_daemon_script)
+
+    cancelled = True
+    res = daemon.call("slow", {}, cancel_poll=lambda: cancelled)
+    assert res == {"error": "Task cancelled."}
+
+    PluginDaemon.stop_instance(plugin_id)
+
+
+def test_daemon_crash_recovery(mock_daemon_script):
+    plugin_id = "test_plugin_crash"
+    daemon = PluginDaemon.get_instance(plugin_id, daemon_script_path=mock_daemon_script)
+
+    # First call pings
+    assert daemon.call("ping", {}) == {"status": "pong"}
+
+    # Second call triggers crash in script, but PluginDaemon auto-restarts and retries next call
+    res_crash = daemon.call("crash", {})
+    assert "error" in res_crash
+
+    # Next call should succeed after auto-restart
+    res_recovery = daemon.call("ping", {})
+    assert res_recovery == {"status": "pong"}
+
+    PluginDaemon.stop_instance(plugin_id)

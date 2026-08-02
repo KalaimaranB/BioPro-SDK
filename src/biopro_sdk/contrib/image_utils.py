@@ -44,7 +44,7 @@ def adjust_contrast(image: NDArray[np.float64], alpha: float = 1.0, beta: float 
     Returns:
         Adjusted float64 image clipped to [0.0, 1.0].
     """
-    if abs(alpha - 1.0) < 0.001 and abs(beta) < 0.001:
+    if abs(alpha - 1.0) < 0.001 and abs(beta) < 0.001:  # noqa: PLR2004
         return image.copy()
 
     adjusted = image * alpha + beta
@@ -93,11 +93,11 @@ def load_and_convert(
     image = img_as_float64(image)
 
     # Handle RGBA by dropping alpha channel
-    if image.ndim == 3 and image.shape[2] == 4:
+    if image.ndim == 3 and image.shape[2] == 4:  # noqa: PLR2004
         image = image[:, :, :3]
 
     # Convert to grayscale if requested
-    if as_grayscale and image.ndim == 3:
+    if as_grayscale and image.ndim == 3:  # noqa: PLR2004
         image = rgb2gray(image)
 
     return image
@@ -136,12 +136,12 @@ def auto_detect_inversion(image: NDArray[np.float64]) -> bool:
 
     # Predominantly light background (standard blot: white bg, dark bands)
     # → do NOT invert.
-    if overall_median > 0.6:
+    if overall_median > 0.6:  # noqa: PLR2004
         return False
 
     # Predominantly dark background → candidate for inversion if the center
     # region contains brighter structures than the corners.
-    if overall_median < 0.4:
+    if overall_median < 0.4:  # noqa: PLR2004
         corner_size_h = max(1, h // 10)
         corner_size_w = max(1, w // 10)
 
@@ -206,7 +206,7 @@ def invert_image(image: NDArray[np.float64]) -> NDArray[np.float64]:
     return 1.0 - image
 
 
-def enhance_for_band_detection(
+def enhance_for_band_detection(  # noqa: PLR0913
     image: NDArray[np.float64],
     *,
     apply_clahe: bool = True,
@@ -244,13 +244,13 @@ def enhance_for_band_detection(
         k = int(max(2, clahe_tile_grid_size))
         out = exposure.equalize_adapthist(out, clip_limit=clip, kernel_size=k)
 
-    if denoise_median_ksize and denoise_median_ksize >= 3:
+    if denoise_median_ksize and denoise_median_ksize >= 3:  # noqa: PLR2004
         k = int(denoise_median_ksize)
         if k % 2 == 0:
             k += 1
         out = median_filter(out, size=(k, k))
 
-    if background_kernel_size and background_kernel_size >= 5:
+    if background_kernel_size and background_kernel_size >= 5:  # noqa: PLR2004
         k = int(background_kernel_size)
         if k % 2 == 0:
             k += 1
@@ -284,7 +284,7 @@ def rotate_image(
     Returns:
         Rotated image as float64.
     """
-    if abs(angle) < 0.01:
+    if abs(angle) < 0.01:  # noqa: PLR2004
         return image.copy()
 
     return rotate(
@@ -378,7 +378,7 @@ def auto_detect_rotation(
     best_var = -1.0
 
     for angle in angles:
-        if abs(angle) < 1e-3:
+        if abs(angle) < 1e-3:  # noqa: PLR2004
             rotated = edges
         else:
             rotated = sk_rotate(edges, angle, resize=False, mode="constant", cval=0.0, preserve_range=True)
@@ -393,7 +393,7 @@ def auto_detect_rotation(
     return round(best_angle, 2)
 
 
-def calculate_band_crop_region(
+def calculate_band_crop_region(  # noqa: C901, PLR0912, PLR0913, PLR0915
     image: NDArray[np.float64],
     dark_threshold: float | None = None,
     min_band_width_frac: float = 0.025,
@@ -404,14 +404,14 @@ def calculate_band_crop_region(
 ) -> tuple[int, int, int, int] | None:
     """Compute the 2D bounding box crop region containing the bands."""
     h, w = image.shape[:2]
-    if h < 2 or w < 2:
+    if h < 2 or w < 2:  # noqa: PLR2004
         return None
 
     # 1. Ignore rotation padding (pure white pixels)
-    valid_mask = image < 0.99
+    valid_mask = image < 0.99  # noqa: PLR2004
     valid_pixels = image[valid_mask]
 
-    if len(valid_pixels) < 100:
+    if len(valid_pixels) < 100:  # noqa: PLR2004
         return None
 
     # 2. Dynamic Threshold (Otsu) for Vertical Rows
@@ -464,13 +464,13 @@ def calculate_band_crop_region(
     band_strip = image[r_min:r_max, :]
     h_strip, w_strip = band_strip.shape
 
-    if h_strip < 2 or w_strip < 2:
+    if h_strip < 2 or w_strip < 2:  # noqa: PLR2004
         return None
 
-    valid_strip_mask = band_strip < 0.99
+    valid_strip_mask = band_strip < 0.99  # noqa: PLR2004
     valid_strip_pixels = band_strip[valid_strip_mask]
 
-    if len(valid_strip_pixels) < 100:
+    if len(valid_strip_pixels) < 100:  # noqa: PLR2004
         c_min, c_max = 0, w_strip
     else:
         try:
@@ -500,7 +500,7 @@ def calculate_band_crop_region(
             aspect_ratio = bw / float(bh)
 
             # Rule: Must be wider than it is tall, and ignore tiny dust/giant background blocks
-            if aspect_ratio > 1.25 and bw >= min_band_w and bw < (w_strip * 0.9):
+            if aspect_ratio > 1.25 and bw >= min_band_w and bw < (w_strip * 0.9):  # noqa: PLR2004
                 accepted_bboxes.append(p.bbox)
                 core_widths.append(bw)
 
@@ -544,7 +544,7 @@ def calculate_band_crop_region(
     return (int(final_r_min), int(final_r_max), int(final_c_min), int(final_c_max))
 
 
-def auto_crop_to_bands(
+def auto_crop_to_bands(  # noqa: PLR0913
     image: NDArray[np.float64],
     dark_threshold: float | None = None,
     min_band_width_frac: float = 0.025,
@@ -594,10 +594,10 @@ def calculate_autocrop_region(
     """
     # 1. Isolate the actual blot from the rotation padding.
     # Rotation padding is usually exactly 1.0. We look at pixels < 0.99.
-    valid_mask = image < 0.99
+    valid_mask = image < 0.99  # noqa: PLR2004
     valid_pixels = image[valid_mask]
 
-    if len(valid_pixels) < 100:  # Failsafe for entirely blank images
+    if len(valid_pixels) < 100:  # Failsafe for entirely blank images  # noqa: PLR2004
         return None
 
     # 2. Determine a dynamic threshold to separate bands from the blot background.
@@ -662,7 +662,7 @@ def crop_to_content(
     Returns:
         Cropped image.
     """
-    if image.ndim != 2:
+    if image.ndim != 2:  # noqa: PLR2004
         raise ValueError("crop_to_content expects a 2D grayscale image")
 
     region = calculate_autocrop_region(image, padding=padding, min_content_fraction=min_content_fraction)
