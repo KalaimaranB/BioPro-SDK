@@ -167,10 +167,12 @@ class PluginDaemon(QObject):
                 except Exception:
                     pass
             self._terminate_process()
-            raise RuntimeError(
+            error_msg = (
                 f"PluginDaemon for '{self.plugin_id}' failed ready handshake. "
-                f"Frame: {ready_frame}. Stderr: {stderr_msg}"
+                f"Virtual Environment connection failed! Frame: {ready_frame}. Stderr: {stderr_msg}"
             )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
 
         logger.info("PluginDaemon for '%s' successfully started and ready.", self.plugin_id)
 
