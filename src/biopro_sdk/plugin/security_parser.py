@@ -61,8 +61,13 @@ class SecurityParser:
         if not manifest_filepath.exists():
             raise SecurityValidationError(f"Manifest file not found: {manifest_filepath}")
 
-        # Calculate SHA-256 of pyproject.toml exactly as written on disk
-        manifest_bytes = manifest_filepath.read_bytes()
+        # Normalize line endings to prevent cross-platform signature mismatches on Windows
+        try:
+            text = manifest_filepath.read_text(encoding="utf-8")
+            manifest_bytes = text.replace("\r\n", "\n").encode("utf-8")
+        except UnicodeDecodeError:
+            manifest_bytes = manifest_filepath.read_bytes()
+
         computed_hash = hashlib.sha256(manifest_bytes).hexdigest()
 
         expected_hash = security_data["manifest_hash"]

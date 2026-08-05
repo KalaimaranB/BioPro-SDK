@@ -184,8 +184,12 @@ class PluginSigner:
                 if any(file.endswith(ext) for ext in MANDATORY_EXTENSIONS):
                     hashes[rel_path] = self._hash_file(Path(root) / file)
 
-        # Calculate Manifest Hash Binding (Pristine pyproject.toml exactly as written on disk)
-        manifest_bytes = manifest_file.read_bytes()
+        # Calculate Manifest Hash Binding (Normalize line endings for cross-platform)
+        try:
+            text = manifest_file.read_text(encoding="utf-8")
+            manifest_bytes = text.replace("\r\n", "\n").encode("utf-8")
+        except UnicodeDecodeError:
+            manifest_bytes = manifest_file.read_bytes()
         manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
 
         # Build security.json (Support custom exclusions if specified in the manifest)
@@ -378,6 +382,17 @@ class PluginSigner:
 
     def _hash_file(self, path: Path) -> str:
         hasher = hashlib.sha256()
+
+        # Normalize line endings for text files to prevent cross-platform signature mismatches
+        text_extensions = {".py", ".pyw", ".json", ".yml", ".yaml", ".toml", ".md", ".txt"}
+        if path.suffix.lower() in text_extensions:
+            try:
+                text = path.read_text(encoding="utf-8")
+                hasher.update(text.replace("\r\n", "\n").encode("utf-8"))
+                return hasher.hexdigest()
+            except UnicodeDecodeError:
+                pass
+
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hasher.update(chunk)

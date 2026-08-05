@@ -478,6 +478,18 @@ class TrustManager:
     def _hash_file(self, full_path: str) -> str:
         """Utility to calculate SHA-256 for a file."""
         hasher = hashlib.sha256()
+        path_obj = Path(full_path)
+
+        # Normalize line endings for text files to prevent cross-platform signature mismatches
+        text_extensions = {".py", ".pyw", ".json", ".yml", ".yaml", ".toml", ".md", ".txt"}
+        if path_obj.suffix.lower() in text_extensions:
+            try:
+                text = path_obj.read_text(encoding="utf-8")
+                hasher.update(text.replace("\r\n", "\n").encode("utf-8"))
+                return hasher.hexdigest()
+            except UnicodeDecodeError:
+                pass
+
         with open(full_path, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hasher.update(chunk)
