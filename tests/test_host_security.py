@@ -192,9 +192,15 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
         "authors": [{"name": "Developer", "role": "Developer", "permissions": ["sign_code"]}],
     }
 
-    with open(plugin_dir / "pyproject.toml", "w") as f:
+    with open(plugin_dir / "pyproject.toml", "w", newline="\n") as f:
         f.write(_dict_to_toml(manifest_data))
-    manifest_bytes = (plugin_dir / "pyproject.toml").read_bytes()
+
+    try:
+        text = (plugin_dir / "pyproject.toml").read_text(encoding="utf-8")
+        manifest_bytes = text.replace("\r\n", "\n").encode("utf-8")
+    except UnicodeDecodeError:
+        manifest_bytes = (plugin_dir / "pyproject.toml").read_bytes()
+
     manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
 
     security_data = {
