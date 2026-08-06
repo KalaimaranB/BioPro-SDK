@@ -44,6 +44,12 @@ class PluginDaemon(QObject):
         self._call_lock = threading.Lock()
         self._retry_count = 0
         self._max_retries = 3
+        # In-flight frame read state, resumed across successive
+        # _read_frame_with_timeout() polls rather than restarted — see that
+        # method and _read_bytes_exact() for why this must persist.
+        self._read_header_buf = bytearray()
+        self._read_payload_buf = bytearray()
+        self._read_payload_len: int | None = None
 
     @classmethod
     def get_instance(
@@ -185,66 +191,90 @@ class PluginDaemon(QObject):
         self._proc.stdin.write(length_header + payload)
         self._proc.stdin.flush()
 
-    def _read_bytes_exact(self, num_bytes: int, timeout: float) -> bytes | None:  # noqa: C901, PLR0911, PLR0912
-        """Read exact number of bytes from subprocess stdout using non-blocking os.read."""
+    def _read_bytes_exact(self, num_bytes: int, timeout: float, buf: bytearray) -> bool:  # noqa: C901, PLR0911, PLR0912
+        """Read exactly num_bytes into buf (appended in place) using non-blocking os.read.
+
+        Bytes already read are kept in `buf` across calls instead of being
+        discarded when `timeout` elapses — for a frame too large to arrive
+        within a single polling slice, a fresh local buffer here used to
+        throw away everything read so far every time the deadline hit, and
+        the *next* call would then reinterpret bytes from the middle of the
+        still-in-flight payload as a brand new frame header. That permanently
+        desynced the stream for any response too big to land in one
+        `timeout` window (e.g. a multi-file FCS batch result), so the caller
+        would just spin until its own outer timeout gave up — even though
+        the daemon had already written a valid, complete response.
+
+        Returns True once buf holds num_bytes, False if `timeout` elapsed
+        first (buf keeps its partial progress so the next call can resume).
+        """
         if not self._proc or not self._proc.stdout:
-            return None
+            return False
 
         fd = self._proc.stdout.fileno()
-        data = bytearray()
         start_time = time.time()
 
-        while len(data) < num_bytes:
+        while len(buf) < num_bytes:
             if self._proc.poll() is not None:
                 # Process exited — try one last read for remaining bytes
                 try:
                     rlist, _, _ = select.select([fd], [], [], 0.01)
                     if rlist:
-                        chunk = os.read(fd, num_bytes - len(data))
+                        chunk = os.read(fd, num_bytes - len(buf))
                         if chunk:
-                            data.extend(chunk)
+                            buf.extend(chunk)
                 except Exception:
                     pass
-                if len(data) == num_bytes:
-                    return bytes(data)
-                return None
+                return len(buf) == num_bytes
 
             remaining_timeout = timeout - (time.time() - start_time)
             if remaining_timeout <= 0:
-                return None
+                return False
 
             if sys.platform != "win32":
                 rlist, _, _ = select.select([fd], [], [], min(0.05, remaining_timeout))
                 if not rlist:
                     continue
                 try:
-                    chunk = os.read(fd, num_bytes - len(data))
+                    chunk = os.read(fd, num_bytes - len(buf))
                     if not chunk:
-                        return None
-                    data.extend(chunk)
+                        return False
+                    buf.extend(chunk)
                 except (OSError, ValueError):
-                    return None
+                    return False
             else:
                 time.sleep(0.01)
                 try:
-                    chunk = os.read(fd, num_bytes - len(data))
+                    chunk = os.read(fd, num_bytes - len(buf))
                     if not chunk:
-                        return None
-                    data.extend(chunk)
+                        return False
+                    buf.extend(chunk)
                 except (OSError, ValueError):
-                    return None
+                    return False
 
-        return bytes(data)
+        return True
 
     def _read_frame_with_timeout(self, timeout: float) -> dict | None:
-        """Read a single length-prefixed msgpack frame from stdout."""
-        header = self._read_bytes_exact(4, timeout)
-        if not header:
+        """Read a single length-prefixed msgpack frame from stdout.
+
+        Resumable across calls: partial header/payload bytes read during a
+        previous call that didn't complete within its `timeout` slice are
+        kept in self._read_header_buf / self._read_payload_buf and continued
+        here rather than restarted — see _read_bytes_exact() for why
+        restarting corrupts frame alignment for large responses.
+        """
+        if self._read_payload_len is None:
+            if not self._read_bytes_exact(4, timeout, self._read_header_buf):
+                return None
+            self._read_payload_len = struct.unpack(">I", bytes(self._read_header_buf))[0]
+
+        if not self._read_bytes_exact(self._read_payload_len, timeout, self._read_payload_buf):
             return None
-        length = struct.unpack(">I", header)[0]
-        payload = self._read_bytes_exact(length, timeout)
-        if not payload:
-            return None
+
+        payload = bytes(self._read_payload_buf)
+        self._read_header_buf = bytearray()
+        self._read_payload_buf = bytearray()
+        self._read_payload_len = None
         return msgpack.unpackb(payload, raw=False)
 
     def call(  # noqa: C901
@@ -312,6 +342,10 @@ class PluginDaemon(QObject):
                     pass
             finally:
                 self._proc = None
+        # Any partially-read frame belonged to this process's now-dead pipe.
+        self._read_header_buf = bytearray()
+        self._read_payload_buf = bytearray()
+        self._read_payload_len = None
 
     def shutdown(self) -> None:
         """Shutdown the daemon gracefully."""

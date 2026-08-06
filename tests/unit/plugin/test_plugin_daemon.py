@@ -12,6 +12,7 @@ def mock_daemon_script(tmp_path):
     code = """
 import sys
 import struct
+import time
 import msgpack
 
 def write_frame(data):
@@ -48,6 +49,15 @@ def main():
         elif method == "slow":
             time.sleep(0.5)
             write_frame({"status": "ok", "done": True})
+        elif method == "large_slow":
+            payload = msgpack.packb({"status": "ok", "blob": "x" * 500000}, use_bin_type=True)
+            header = struct.pack(">I", len(payload))
+            full = header + payload
+            chunk_size = 8192
+            for i in range(0, len(full), chunk_size):
+                sys.stdout.buffer.write(full[i:i + chunk_size])
+                sys.stdout.buffer.flush()
+                time.sleep(0.01)
         else:
             write_frame({"error": f"Unknown method {method}"})
 
@@ -98,5 +108,33 @@ def test_daemon_crash_recovery(mock_daemon_script):
     # Next call should succeed after auto-restart
     res_recovery = daemon.call("ping", {})
     assert res_recovery == {"status": "pong"}
+
+    PluginDaemon.stop_instance(plugin_id)
+
+
+def test_daemon_large_response_spanning_multiple_polls(mock_daemon_script):
+    """A response frame that takes longer than a single 0.1s poll to fully
+    arrive must still be read correctly and must not desync the stream.
+
+    Regression test: _read_bytes_exact() used to discard any bytes already
+    read whenever its per-poll timeout elapsed before the full frame
+    arrived, and the next poll would then reinterpret bytes from the middle
+    of that still-in-flight payload as a brand new frame header. That
+    permanently corrupted frame alignment for any response too large to
+    land within one polling slice, so the caller spun until its own outer
+    `timeout` gave up even though the daemon had already sent a complete,
+    valid response.
+    """
+    plugin_id = "test_plugin_large_slow"
+    daemon = PluginDaemon.get_instance(plugin_id, daemon_script_path=mock_daemon_script)
+
+    res = daemon.call("large_slow", {}, timeout=5.0)
+    assert res.get("status") == "ok"
+    assert res.get("blob") == "x" * 500000
+
+    # The stream must remain aligned for a subsequent call, proving no
+    # leftover/misread bytes were left behind by the large response.
+    res_ping = daemon.call("ping", {})
+    assert res_ping == {"status": "pong"}
 
     PluginDaemon.stop_instance(plugin_id)
