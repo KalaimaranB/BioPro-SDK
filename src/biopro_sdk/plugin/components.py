@@ -53,11 +53,31 @@ def _apply_global_sdk_styles() -> None:
     """Inject QToolTip styling globally and configure the QApplication palette for dark mode."""
     import re
 
+    from PyQt6.QtCore import QMetaObject, Qt, QThread, QTimer
     from PyQt6.QtGui import QColor, QPalette
     from PyQt6.QtWidgets import QApplication
 
     app = QApplication.instance()
     if not isinstance(app, QApplication):
+        return
+
+    if QThread.currentThread() is not app.thread():
+        # QApplication.setStyle()/setPalette()/setStyleSheet() are not thread-safe:
+        # setStyle() reparents the new QStyle onto qApp internally, which corrupts
+        # Qt's thread-affinity bookkeeping (and can crash later, somewhere
+        # unrelated, e.g. QWidget::sizeHint() during a layout pass) if called off
+        # the GUI thread. This module is imported at plugin-load time, and hosts
+        # can load plugin code on a background QThread (e.g. BioPro's async
+        # plugin-loader), so the *first* import of this module in the process
+        # can land here off the main thread. Hop over via a queued single-shot
+        # timer moved onto the QApplication's own thread instead of touching the
+        # QApplication directly from here.
+        timer = QTimer()
+        timer.setSingleShot(True)
+        timer.timeout.connect(_apply_global_sdk_styles)
+        timer.moveToThread(app.thread())
+        timer.setParent(app)  # keep it alive until it fires; safe now that thread affinity matches
+        QMetaObject.invokeMethod(timer, "start", Qt.ConnectionType.QueuedConnection)
         return
 
     Colors, Fonts, _ = _get_theme_tokens()

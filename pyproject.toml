@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "biopro-sdk"
-version = "1.3.8"
+version = "1.3.9"
 description = "Software Development Kit and CLI for BioPro."
 readme = "README.md"
 requires-python = ">=3.11"
