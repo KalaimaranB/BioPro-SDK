@@ -28,7 +28,7 @@ from .components import (
     apply_component_style,
 )
 from .context import PluginContext, UndeclaredCapabilityAccess
-from .daemon import PluginDaemon
+from .daemon import PluginDaemon, PluginUIDaemon
 from .dialogs import (
     ask_ok_cancel,
     ask_yes_no,
@@ -66,6 +66,7 @@ __all__ = [
     # Base and Core
     "PluginBase",
     "PluginDaemon",
+    "PluginUIDaemon",
     "PluginSignals",
     "PluginState",
     "PluginContext",
