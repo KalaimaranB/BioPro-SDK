@@ -6,6 +6,7 @@ from biopro_sdk.host.sign_plugin import PluginSigner
 def setup_security_parser(subparsers):
     # Command: init-identity
     init_parser = subparsers.add_parser("init-identity", help="Bootstrap a local developer or project identity.")
+    init_parser.add_argument("--out", type=str, help="Custom directory to output keys (optional)")
     init_parser.set_defaults(func=init_identity)
 
     # Command: sign
@@ -23,6 +24,11 @@ def setup_security_parser(subparsers):
         default="BIOPRO_PROJECT_PRIVATE_KEY",
         help="Environment variable containing Project private key PEM (default: BIOPRO_PROJECT_PRIVATE_KEY)",
     )
+    proj_parser.add_argument(
+        "--delegation",
+        type=str,
+        help="Path to runner delegation file to append to the trust chain (optional)",
+    )
     proj_parser.set_defaults(func=project_sign_plugin)
 
     # Command: registry
@@ -39,7 +45,8 @@ def setup_security_parser(subparsers):
 
 def init_identity(args) -> bool:
     """Bootstrap a local developer or project identity."""
-    signer = PluginSigner()
+    out_path = Path(args.out) if hasattr(args, "out") and args.out else None
+    signer = PluginSigner(out_path)
     try:
         signer.init_identity()
         print("\nSUCCESS: Developer identity initialized.")
@@ -71,7 +78,8 @@ def project_sign_plugin(args) -> bool:
         print(f"ERROR: Project private key environment variable {args.key_env} is not set.")
         return False
     try:
-        signer.project_sign_plugin(Path(args.plugin_dir), pem_data.encode())
+        delegation_path = Path(args.delegation) if hasattr(args, "delegation") and args.delegation else None
+        signer.project_sign_plugin(Path(args.plugin_dir), pem_data.encode(), delegation_path)
         return True
     except Exception as e:
         print(f"ERROR: Project signing failed: {e}")

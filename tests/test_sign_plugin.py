@@ -55,8 +55,8 @@ authors = [{name = "Test", role = "Developer"}]
     assert (plugin_path / "project_signature.bin").exists()
 
     chain = TrustChain.from_file(plugin_path / "trust_chain.json")
-    assert len(chain.links) == 2
-    assert chain.links[1].subject_name == "BioPro GitHub Actions CI"
+    assert len(chain.links) == 1
+    # Without delegation, it does not append the runner link.
 
     # Error: Invalid Project PEM
     signer.project_sign_plugin(plugin_path, b"invalid_pem")

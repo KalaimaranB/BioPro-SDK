@@ -99,8 +99,8 @@ IGNORE_LIST = {
 
 
 class PluginSigner:
-    def __init__(self):
-        self.dev_dir = Path.home() / ".biopro" / "dev_keys"
+    def __init__(self, custom_dev_dir: Path | None = None):
+        self.dev_dir = custom_dev_dir if custom_dev_dir else (Path.home() / ".biopro" / "dev_keys")
         self.private_key_path = self.dev_dir / "private.key"
         self.public_key_path = self.dev_dir / "public.pub"
         self.delegation_path = self.dev_dir / "delegation.json"  # Your credentials from authority
@@ -246,7 +246,9 @@ class PluginSigner:
         logger.info(f"Successfully signed {plugin_id}")
         logger.info("Generated: signature.bin, trust_chain.json")
 
-    def project_sign_plugin(self, plugin_path: Path, project_private_key_pem: bytes):
+    def project_sign_plugin(
+        self, plugin_path: Path, project_private_key_pem: bytes, delegation_path: Path | None = None
+    ):
         """Verifies developer signatures and file integrity, then co-signs security.json as the Project CI runner."""
         security_file = plugin_path / "security.json"
         signature_file = plugin_path / "signature.bin"
@@ -303,21 +305,19 @@ class PluginSigner:
         with open(plugin_path / "project_signature.bin", "wb") as f:
             f.write(project_signature)
 
-        # 8. Append Project Link to trust_chain.json
-        project_pub_bytes = project_private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
-
-        project_link = TrustLink(
-            subject_name="BioPro GitHub Actions CI",
-            subject_pub=project_pub_bytes.hex(),
-            issuer_name="BioPro Core Authority",
-            signature=project_signature.hex(),
-        )
-
-        chain.links.append(project_link)
-        with open(trust_file, "w") as f:
-            f.write(chain.to_json())
+        # 8. Append Project Link to trust_chain.json if provided
+        if delegation_path and delegation_path.exists():
+            runner_chain = TrustChain.from_file(delegation_path)
+            if runner_chain and runner_chain.links:
+                chain.links.extend(runner_chain.links)
+                with open(trust_file, "w") as f:
+                    f.write(chain.to_json())
+                logger.info(f"Successfully appended CI runner delegation to {security_data['plugin_id']}.")
+            else:
+                logger.error(f"Failed to load valid CI runner delegation from {delegation_path}")
+                return
+        else:
+            logger.info("No delegation file provided for CI runner; assuming runner is pre-registered in trust chain.")
 
         logger.info(f"Successfully applied Project signature to {security_data['plugin_id']}.")
 
@@ -427,7 +427,8 @@ def main():
     parser = argparse.ArgumentParser(description="BioPro Plugin Signer")
     subparsers = parser.add_subparsers(dest="command")
 
-    subparsers.add_parser("init")
+    init_parser = subparsers.add_parser("init")
+    init_parser.add_argument("--out", help="Custom directory to output keys (optional)")
 
     sign_parser = subparsers.add_parser("sign")
     sign_parser.add_argument("path", help="Path to plugin folder")
@@ -439,6 +440,10 @@ def main():
         default="BIOPRO_PROJECT_PRIVATE_KEY",
         help="Environment variable containing Project private key PEM",
     )
+    project_sign_parser.add_argument(
+        "--delegation",
+        help="Path to runner delegation file to append to the trust chain (optional)",
+    )
 
     delegate_parser = subparsers.add_parser("delegate")
     delegate_parser.add_argument("pub_path", help="Path to researcher's public.pub")
@@ -448,7 +453,7 @@ def main():
     subparsers.add_parser("registry")
 
     args = parser.parse_args()
-    signer = PluginSigner()
+    signer = PluginSigner(Path(args.out) if hasattr(args, "out") and args.out else None)
 
     if args.command == "init":
         signer.init_identity()
@@ -459,7 +464,8 @@ def main():
         if not pem_str:
             logger.error(f"Project signing key not found in env: {args.key_env}")
             return
-        signer.project_sign_plugin(Path(args.path), pem_str.encode("utf-8"))
+        delegation_path = Path(args.delegation) if args.delegation else None
+        signer.project_sign_plugin(Path(args.path), pem_str.encode("utf-8"), delegation_path)
     elif args.command == "delegate":
         signer.delegate_identity(Path(args.pub_path), args.name, Path(args.authority) if args.authority else None)
     elif args.command == "registry":

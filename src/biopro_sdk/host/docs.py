@@ -7,7 +7,7 @@ Allows plugins to register markdown files that act as help pages.
 class PluginDocumentation:
     """Registry for plugin help documentation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the documentation registry with empty mapping stores."""
         # Format: { plugin_id: { page_id: file_path } }
         self._registry: dict[str, dict[str, str]] = {}

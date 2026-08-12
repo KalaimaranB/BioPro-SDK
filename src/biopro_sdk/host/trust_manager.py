@@ -253,88 +253,70 @@ class TrustManager:
             if not chain or not chain.links:
                 return VerificationResult(success=False, error_message="Invalid or empty trust chain.")
 
-            verified_dev_keys = {}
+            verified_dev_keys: dict[str, str] = {}
             verified_links = []
 
-            # Map out recognized and verified links
-            for i in range(len(chain.links)):
-                link = chain.links[i]
-                sub_bytes = bytes.fromhex(link.subject_pub)
-                sig_bytes = bytes.fromhex(link.signature)
+            unverified_links = chain.links.copy()
+            progress = True
+            while progress:
+                progress = False
+                for link in unverified_links[:]:
+                    sub_bytes = bytes.fromhex(link.subject_pub)
+                    sig_bytes = bytes.fromhex(link.signature)
 
-                has_parent_delegation = False
-                if i + 1 < len(chain.links):
-                    next_link = chain.links[i + 1]
-                    if link.issuer_name == next_link.subject_name:
-                        has_parent_delegation = True
-                        parent_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(next_link.subject_pub))
-                        try:
-                            parent_key.verify(sig_bytes, sub_bytes)
-                            verified_dev_keys[link.subject_pub] = link.subject_name
-                            verified_links.append(
-                                {"name": link.subject_name, "status": "verified", "key": link.subject_pub}
-                            )
-                        except InvalidSignature:
-                            return VerificationResult(
-                                success=False,
-                                error_message=f"Broken Trust Link: {next_link.subject_name} signature for {link.subject_name} is invalid.",
-                            )
+                    verified = False
 
-                if not has_parent_delegation:
-                    anchor_found = False
+                    # Check roots
                     for root_key in self.trusted_roots:
                         try:
                             root_key.verify(sig_bytes, sub_bytes)
-                            anchor_found = True
+                            verified = True
                             break
                         except Exception:
                             continue
 
-                    if not anchor_found:
-                        # Check direct trust
-                        for root_key in self.trusted_roots:
-                            try:
-                                root_bytes = root_key.public_bytes(
-                                    encoding=serialization.Encoding.Raw,
-                                    format=serialization.PublicFormat.Raw,
-                                )
-                                if root_bytes == sub_bytes:
-                                    anchor_found = True
+                    # Check already verified keys
+                    if not verified:
+                        for pub_hex, name in verified_dev_keys.items():
+                            if link.issuer_name == name:
+                                parent_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(pub_hex))
+                                try:
+                                    parent_key.verify(sig_bytes, sub_bytes)
+                                    verified = True
                                     break
-                            except Exception:
-                                continue
+                                except InvalidSignature:
+                                    pass
 
-                    if anchor_found:
+                    if verified:
                         verified_dev_keys[link.subject_pub] = link.subject_name
-                        verified_links.append({"name": link.subject_name, "status": "anchor", "key": link.subject_pub})
-                    else:
-                        return VerificationResult(
-                            success=False,
-                            error_message=f"Untrusted Root: {link.subject_name} is not signed by a recognized BioPro Authority.",
-                            developer_name=link.subject_name,
-                            developer_key=link.subject_pub,
+                        status = (
+                            "anchor"
+                            if link.issuer_name in ["BioPro Core Authority", "BioPro Project Runner"]
+                            else "verified"
                         )
+                        verified_links.append({"name": link.subject_name, "status": status, "key": link.subject_pub})
+                        unverified_links.remove(link)
+                        progress = True
 
             # Verify Leaf Developer signature on security.json canonical bytes
             canonical_bytes = json.dumps(security_data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
-            dev_link = chain.links[0]
-            if dev_link.subject_pub not in verified_dev_keys:
-                return VerificationResult(
-                    success=False,
-                    error_message=f"Untrusted Root: {dev_link.subject_name} is not signed by a recognized BioPro Authority.",
-                    developer_name=dev_link.subject_name,
-                    developer_key=dev_link.subject_pub,
-                )
-
-            dev_public_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(dev_link.subject_pub))
             dev_sig = sig_file.read_bytes()
-            try:
-                dev_public_key.verify(dev_sig, canonical_bytes)
-            except InvalidSignature:
+            dev_public_key = None
+            for link in chain.links:
+                if link.subject_pub in verified_dev_keys:
+                    pub_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(link.subject_pub))
+                    try:
+                        pub_key.verify(dev_sig, canonical_bytes)
+                        dev_public_key = pub_key
+                        break
+                    except InvalidSignature:
+                        continue
+
+            if not dev_public_key:
                 return VerificationResult(
                     success=False,
-                    error_message="Invalid Plugin Signature (Developer check failed).",
+                    error_message="Invalid Plugin Signature (No trusted developer key could verify it).",
                 )
 
             # 3. Enforce Signing RBAC and Consensus
@@ -343,7 +325,7 @@ class TrustManager:
                 if "sign_code" in author.get("permissions", []):
                     required_cosigners.append(author["name"])
 
-            verified_names = {link.subject_name for link in chain.links if link.subject_pub in verified_dev_keys}
+            verified_names = set(verified_dev_keys.values())
             for cosigner in required_cosigners:
                 if cosigner not in verified_names:
                     return VerificationResult(
@@ -353,12 +335,19 @@ class TrustManager:
 
             # 4. Secondary CI/CD Double-Signature verification (if present)
             if project_sig_file.exists():
-                project_link = chain.links[-1]
-                project_public_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(project_link.subject_pub))
                 project_sig = project_sig_file.read_bytes()
-                try:
-                    project_public_key.verify(project_sig, canonical_bytes)
-                except InvalidSignature:
+                project_public_key = None
+                for link in chain.links:
+                    if link.subject_pub in verified_dev_keys:
+                        pub_key = ed25519.Ed25519PublicKey.from_public_bytes(bytes.fromhex(link.subject_pub))
+                        try:
+                            pub_key.verify(project_sig, canonical_bytes)
+                            project_public_key = pub_key
+                            break
+                        except InvalidSignature:
+                            continue
+
+                if not project_public_key:
                     return VerificationResult(
                         success=False,
                         error_message="Invalid Project CI Co-Signature (Project check failed).",

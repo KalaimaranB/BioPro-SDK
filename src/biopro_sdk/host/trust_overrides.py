@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class LocalTrustRegistry:
     """Manages a registry of user-approved plugin snapshots secured by local Machine Keys."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the local trust registry and load current overrides."""
         self.config_dir = Path.home() / ".biopro"
         self.storage_path = self.config_dir / "trust_overrides.json"
@@ -49,7 +49,7 @@ class LocalTrustRegistry:
             loaded_key = serialization.load_pem_private_key(private_pem, password=None)
             return cast(ed25519.Ed25519PrivateKey, loaded_key)
 
-    def _load(self):
+    def _load(self) -> None:
         """Load stored overrides from disk and verify local cryptographic signature."""
         if self.storage_path.exists():
             try:
@@ -75,7 +75,7 @@ class LocalTrustRegistry:
                 )
                 self._data = {}
 
-    def save(self):
+    def save(self) -> None:
         """Persist overrides to disk and sign with local background machine key."""
         self.config_dir.mkdir(parents=True, exist_ok=True)
         data_bytes = json.dumps(self._data, indent=4).encode("utf-8")
@@ -101,12 +101,12 @@ class LocalTrustRegistry:
         # All files in the snapshot must match the current state
         return stored_snapshot == current_hashes
 
-    def trust_current_state(self, plugin_id: str, current_hashes: dict[str, str]):
+    def trust_current_state(self, plugin_id: str, current_hashes: dict[str, str]) -> None:
         """Record the current state as trusted for this machine."""
         self._data[plugin_id] = current_hashes
         self.save()
 
-    def remove_trust(self, plugin_id: str):
+    def remove_trust(self, plugin_id: str) -> None:
         """Remove a local trust override."""
         if plugin_id in self._data:
             del self._data[plugin_id]

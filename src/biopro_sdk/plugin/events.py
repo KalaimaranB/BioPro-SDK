@@ -16,7 +16,7 @@ class _EventBus(QObject):
     # Generic signal used to bounce events through the Qt event loop
     _event_signal = pyqtSignal(str, object)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._subscribers: dict[str, list[Callable[[Any], None]]] = {}
         self._event_signal.connect(self._handle_event)
@@ -63,7 +63,7 @@ class _EventBus(QObject):
 class _EventBusProxy:
     """Lazy proxy to ensure QObject is not instantiated before QApplication."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._bus = None
 
     def _get_bus(self):
