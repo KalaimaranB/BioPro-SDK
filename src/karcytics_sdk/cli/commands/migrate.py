@@ -70,10 +70,10 @@ dependencies = [
 {clean_deps}
 ]
 
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "{plugin_id}"
 min_core_version = "{manifest_data.get("min_core_version", "1.4.9")}"
-entry_point = "biopro_plugins.{plugin_id}:initialize"
+entry_point = "karcytics_plugins.{plugin_id}:initialize"
 requires = {reqs_json}
 authors = [
 {clean_plugin_authors}
@@ -92,7 +92,7 @@ authors = [
     src_dir = p_dir / "src"
     src_dir.mkdir(exist_ok=True)
 
-    plugin_pkg_dir = src_dir / "biopro_plugins" / plugin_id
+    plugin_pkg_dir = src_dir / "karcytics_plugins" / plugin_id
     plugin_pkg_dir.mkdir(parents=True, exist_ok=True)
 
     # Move all .py files except setup.py to the new package directory
@@ -107,6 +107,6 @@ authors = [
         # Create an empty __init__.py if no files were moved
         (plugin_pkg_dir / "__init__.py").touch()
 
-    print("\n✅ Migration complete! Please verify your imports in the new src/biopro_plugins/ folder.")
+    print("\n✅ Migration complete! Please verify your imports in the new src/karcytics_plugins/ folder.")
     print("Run 'karcytics-sdk sign .' to sign the new structure.")
     return True

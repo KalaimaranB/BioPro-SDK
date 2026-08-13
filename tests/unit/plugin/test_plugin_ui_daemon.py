@@ -187,7 +187,7 @@ def test_ui_daemon_send_event_is_fire_and_forget(mock_ui_daemon_script):
 
 
 def test_resolve_daemon_script_finds_plugin_root_layout(tmp_path):
-    """Older plugins (manifest_version 2, no src/biopro_plugins/<id>/ tree —
+    """Older plugins (manifest_version 2, no src/karcytics_plugins/<id>/ tree —
     e.g. Synthetic Biology) keep everything at the plugin's own root next to
     manifest.json/__init__.py. ui_daemon.py must be discoverable there too,
     not just under the newer src/ layout Flow Cytometry uses.
@@ -208,7 +208,7 @@ def test_resolve_daemon_script_finds_plugin_root_layout(tmp_path):
 def test_resolve_daemon_script_prefers_src_layout_when_both_exist(tmp_path):
     plugin_id = "test_both_layouts_plugin"
     plugin_dir = tmp_path / ".karcytics" / "plugins" / plugin_id
-    src_dir = plugin_dir / "src" / "biopro_plugins" / plugin_id
+    src_dir = plugin_dir / "src" / "karcytics_plugins" / plugin_id
     src_dir.mkdir(parents=True)
     src_script = src_dir / "ui_daemon.py"
     src_script.write_text("# not executed by this test")

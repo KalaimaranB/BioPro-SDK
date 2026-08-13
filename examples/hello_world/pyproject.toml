@@ -7,7 +7,7 @@ authors = [
     { name = "Karcytics SDK Team", role = "Lead Developer" },
 ]
 
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "hello_world"
 min_core_version = "1.2.7"
 entry_point = "hello_world:initialize"

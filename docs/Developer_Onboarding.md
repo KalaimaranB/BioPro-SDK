@@ -83,7 +83,7 @@ my_first_plugin/
 ### Understanding the Manifest (`pyproject.toml`)
 The `pyproject.toml` file contains standard Python packaging data alongside Karcytics-specific metadata:
 ```toml
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "my_first_plugin"
 min_core_version = "1.4.9"
 entry_point = "my_first_plugin:get_panel_class"
@@ -154,7 +154,7 @@ If you are an existing developer upgrading your plugins from Karcytics V1 to the
 
 1. **Adopt the Split-Manifest Architecture**:
    - V1 relied on a custom `manifest.json`. In V2, all configuration must be moved to standard Python `pyproject.toml`.
-   - Your entry point must now be declared under `[tool.biopro.plugin]` in your `pyproject.toml`.
+   - Your entry point must now be declared under `[tool.karcytics.plugin]` in your `pyproject.toml`.
 2. **Move Source Code to `src/`**:
    - V1 allowed flat directory structures. V2 enforces a strict `src/` layout. Move all your Python logic into `src/` and ensure your entry point is resolvable.
 3. **Generate Developer Keys**:

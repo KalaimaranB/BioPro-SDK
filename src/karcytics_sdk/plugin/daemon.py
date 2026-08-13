@@ -111,7 +111,7 @@ class PluginDaemon(QObject):
 
         # Check installed plugin directory
         plugin_dir = Path.home() / ".karcytics" / "plugins" / self.plugin_id
-        candidate = plugin_dir / "src" / "biopro_plugins" / self.plugin_id / "analysis" / "daemon_worker.py"
+        candidate = plugin_dir / "src" / "karcytics_plugins" / self.plugin_id / "analysis" / "daemon_worker.py"
         if candidate.exists():
             return candidate
 
@@ -119,7 +119,7 @@ class PluginDaemon(QObject):
         try:
             import importlib.util
 
-            mod_name = f"biopro_plugins.{self.plugin_id}.analysis.daemon_worker"
+            mod_name = f"karcytics_plugins.{self.plugin_id}.analysis.daemon_worker"
             spec = importlib.util.find_spec(mod_name)
             if spec and spec.origin:
                 return Path(spec.origin)
@@ -464,7 +464,7 @@ class PluginUIDaemon(QObject):
     def _resolve_daemon_script(self) -> Path:
         """Resolve ui_daemon.py path if not explicitly supplied.
 
-        Checks both plugin layouts in use: the newer `src/biopro_plugins/<id>/`
+        Checks both plugin layouts in use: the newer `src/karcytics_plugins/<id>/`
         tree (e.g. Flow Cytometry) and a plain `ui_daemon.py` at the plugin's
         own root (alongside `manifest.json`/`__init__.py`, e.g. Synthetic
         Biology's older manifest_version-2 layout) — a plugin migrating to
@@ -476,7 +476,7 @@ class PluginUIDaemon(QObject):
 
         plugin_dir = Path.home() / ".karcytics" / "plugins" / self.plugin_id
         candidates = [
-            plugin_dir / "src" / "biopro_plugins" / self.plugin_id / "ui_daemon.py",
+            plugin_dir / "src" / "karcytics_plugins" / self.plugin_id / "ui_daemon.py",
             plugin_dir / "ui_daemon.py",
         ]
         for candidate in candidates:
@@ -486,7 +486,7 @@ class PluginUIDaemon(QObject):
         try:
             import importlib.util
 
-            mod_name = f"biopro_plugins.{self.plugin_id}.ui_daemon"
+            mod_name = f"karcytics_plugins.{self.plugin_id}.ui_daemon"
             spec = importlib.util.find_spec(mod_name)
             if spec and spec.origin:
                 return Path(spec.origin)

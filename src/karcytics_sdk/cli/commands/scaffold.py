@@ -58,10 +58,10 @@ dev = [
     "mkdocs-material"
 ]
 
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "{p_id}"
 min_core_version = "1.4.9"
-entry_point = "biopro_plugins.{p_id}:initialize"
+entry_point = "karcytics_plugins.{p_id}:initialize"
 requires = ["task_scheduler", "logger", "event_bus"]
 authors = [
   {{ name = "Developer Name", role = "Developer", permissions = ["read_workspace", "write_assets"] }}
@@ -281,7 +281,7 @@ with open('pyproject.toml', 'rb') as f:
     data = toml.load(f)
 
 project = data.get('project', {})
-plugin = data.get('tool', {}).get('biopro', {}).get('plugin', {})
+plugin = data.get('tool', {}).get('karcytics', {}).get('plugin', {})
 
 plugin_id = plugin.get('id', '')
 version = project.get('version', '')
