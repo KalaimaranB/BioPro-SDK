@@ -25,7 +25,7 @@ from .trust_path import TrustChain
 logger = logging.getLogger(__name__)
 
 # Hardcoded Karcytics Authority Public Key (The Root of Trust)
-_FALLBACK_ROOT_PUBLIC_KEY_HEX = "08f4319b6f979057b36b0db2b8faaee6eff8782f3aafd5e924ba79b04d4c8366"
+_FALLBACK_ROOT_PUBLIC_KEY_HEX = "079c0fad50c5d408da83b1ee45c6e788fa540c062efa5c4b1af7f13ed030df26"
 KARCYTICS_ROOT_PUBLIC_KEY_HEX = os.getenv("KARCYTICS_ROOT_PUBLIC_KEY_HEX", _FALLBACK_ROOT_PUBLIC_KEY_HEX)
 
 
