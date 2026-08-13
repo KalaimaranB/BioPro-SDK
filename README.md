@@ -1,10 +1,10 @@
-# 🔌 BioPro SDK
+# 🔌 Karcytics SDK
 
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet?style=flat-square)](https://KalaimaranB.github.io/BioPro-SDK/)
-[![CI Build Status](https://img.shields.io/github/actions/workflow/status/KalaimaranB/BioPro-SDK/test_and_lint.yml?branch=main&style=flat-square&label=CI%20build)](https://github.com/KalaimaranB/BioPro-SDK/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/KalaimaranB/BioPro-SDK/blob/main/LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet?style=flat-square)](https://KalaimaranB.github.io/Karcytics-SDK/)
+[![CI Build Status](https://img.shields.io/github/actions/workflow/status/KalaimaranB/Karcytics-SDK/test_and_lint.yml?branch=main&style=flat-square&label=CI%20build)](https://github.com/KalaimaranB/Karcytics-SDK/actions)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/KalaimaranB/Karcytics-SDK/blob/main/LICENSE)
 
-The Software Development Kit (SDK) and Command-Line Interface (CLI) for building, validating, and signing plugins for the **BioPro** desktop scientific suite.
+The Software Development Kit (SDK) and Command-Line Interface (CLI) for building, validating, and signing plugins for the **Karcytics** desktop scientific suite.
 
 ---
 
@@ -13,7 +13,7 @@ The Software Development Kit (SDK) and Command-Line Interface (CLI) for building
 - **Decoupled Architecture**: Build and test PyQt6-based scientific plugins independently of the main desktop app.
 - **Fail-Safe Dynamic Theme Fallbacks**: Visual components automatically load custom HSL-tailored colors when running standalone inside CI/CD test gates or external visualizers.
 - **Merkle-Tree Cryptographic Integrity**: Built-in Ed25519 signing and verification tools to secure user environments against remote execution and tampering.
-- **PyPI-Ready Packaging**: Complete declarative `pyproject.toml` config, built to publish natively under the `biopro-sdk` package.
+- **PyPI-Ready Packaging**: Complete declarative `pyproject.toml` config, built to publish natively under the `karcytics-sdk` package.
 
 ---
 
@@ -22,21 +22,21 @@ The Software Development Kit (SDK) and Command-Line Interface (CLI) for building
 Install the SDK directly into your plugin's virtual environment:
 
 ```bash
-pip install biopro-sdk
+pip install karcytics-sdk
 ```
 
 *(Or during development, install in editable mode):*
 ```bash
-git clone https://github.com/KalaimaranB/BioPro-SDK.git
-cd BioPro-SDK
+git clone https://github.com/KalaimaranB/Karcytics-SDK.git
+cd Karcytics-SDK
 pip install -e .
 ```
 
 ---
 
-## 📦 Creating a Custom BioPro Plugin
+## 📦 Creating a Custom Karcytics Plugin
 
-To build a valid plugin, implement the `BioProPlugin` interface and declare your entrypoints.
+To build a valid plugin, implement the `KarcyticsPlugin` interface and declare your entrypoints.
 
 ### 1. `manifest.json`
 Every plugin must include a manifest file in its root directory:
@@ -56,11 +56,11 @@ Every plugin must include a manifest file in its root directory:
 ### 2. `plugin.py`
 ```python
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
-from biopro_sdk.core.interfaces import BioProPlugin
-from biopro_sdk.ui import PrimaryButton
+from karcytics_sdk.core.interfaces import KarcyticsPlugin
+from karcytics_sdk.ui import PrimaryButton
 
-class MyPluginClass(BioProPlugin):
-    """A professional-grade BioPro plugin."""
+class MyPluginClass(KarcyticsPlugin):
+    """A professional-grade Karcytics plugin."""
 
     def initialize(self) -> None:
         self.logger.info("Initializing custom plugin...")
@@ -81,7 +81,7 @@ class MyPluginClass(BioProPlugin):
 
 ## 🛡️ Cryptographic Trust Architecture
 
-BioPro implements a professional-grade **Chain of Trust** to protect laboratory environments:
+Karcytics implements a professional-grade **Chain of Trust** to protect laboratory environments:
 
 ```
 [ Root Authority ] (Hardcoded Core Key)
@@ -95,21 +95,21 @@ BioPro implements a professional-grade **Chain of Trust** to protect laboratory 
 
 ### 1. Generate Your Cryptographic Identity
 ```bash
-biopro-sdk setup-identity
+karcytics-sdk setup-identity
 ```
-- Local Private Key: `~/.biopro/dev_private_key.pem`
-- Developer Certificate: `~/.biopro/dev_cert.bin`
+- Local Private Key: `~/.karcytics/dev_private_key.pem`
+- Developer Certificate: `~/.karcytics/dev_cert.bin`
 
 ### 2. Sign Your Plugin payload
 Calculates Merkle-hashes for all your files recursively, excludes development directories automatically, updates `manifest.json`, and writes `signature.bin`:
 ```bash
-biopro-sdk sign <path/to/plugin>
+karcytics-sdk sign <path/to/plugin>
 ```
 
 ### 3. Modularity Compliance Check
 Verify your plugin matches QA and security standards:
 ```bash
-biopro-sdk evaluate <path/to/plugin>
+karcytics-sdk evaluate <path/to/plugin>
 ```
 
 ---
@@ -120,7 +120,7 @@ Since the SDK decouples all theme components from the desktop core using robust 
 ```python
 import sys
 from PyQt6.QtWidgets import QApplication
-from biopro_sdk.ui import PrimaryButton, WizardPanel
+from karcytics_sdk.ui import PrimaryButton, WizardPanel
 
 app = QApplication(sys.argv)
 widget = WizardPanel()  # Renders beautifully even without the main app!

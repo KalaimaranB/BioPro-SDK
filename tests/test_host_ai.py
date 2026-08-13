@@ -3,30 +3,30 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from biopro_sdk.host.ai import AIAssistant, AIServerManager
+from karcytics_sdk.host.ai import AIAssistant, AIServerManager
 
 
 @pytest.fixture
 def temp_ai_env(tmp_path):
     """Setup temp workspace for model files and logs."""
-    biopro_dir = tmp_path / ".biopro"
-    biopro_dir.mkdir()
+    karcytics_dir = tmp_path / ".karcytics"
+    karcytics_dir.mkdir()
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        yield tmp_path, biopro_dir
+        yield tmp_path, karcytics_dir
 
 
 @patch("socket.socket")
 def test_ai_server_manager_initialization(mock_socket, temp_ai_env):
     """Test default values and signals for AIServerManager."""
-    _, biopro_dir = temp_ai_env
+    _, karcytics_dir = temp_ai_env
 
     mock_s = MagicMock()
     mock_s.connect_ex.return_value = 1  # closed
     mock_socket.return_value.__enter__.return_value = mock_s
 
     manager = AIServerManager()
-    assert manager.model_path == str(biopro_dir / "models" / "gemma4.gguf")
+    assert manager.model_path == str(karcytics_dir / "models" / "gemma4.gguf")
     assert manager.is_running() is False
 
 
@@ -113,21 +113,21 @@ def test_ai_server_launches_new_subprocess(mock_run, mock_popen, mock_socket, mo
 @patch("requests.post")
 def test_ai_assistant_ask_question_non_stream(mock_post, temp_ai_env, tmp_path):
     """Test AIAssistant non-streaming responses and context gatherers."""
-    _, biopro_dir = temp_ai_env
+    _, karcytics_dir = temp_ai_env
 
     # Create mock user guides to test document contextualizer
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
-    (docs_dir / "01_User_Guide.md").write_text("BioPro uses desktop components.")
+    (docs_dir / "01_User_Guide.md").write_text("Karcytics uses desktop components.")
     (docs_dir / "02_Getting_Started.md").write_text("Follow starting procedures.")
 
     # Create local soul Persona file
-    (biopro_dir / "soul.md").write_text("- Be polite.\n- Talk like an expert.")
+    (karcytics_dir / "soul.md").write_text("- Be polite.\n- Talk like an expert.")
 
     # Mock successful response
     mock_res = MagicMock(status_code=200)
     mock_res.json.return_value = {
-        "choices": [{"message": {"content": "I am the BioPro assistant. Here is your advice."}}]
+        "choices": [{"message": {"content": "I am the Karcytics assistant. Here is your advice."}}]
     }
     mock_post.return_value = mock_res
 
@@ -178,7 +178,7 @@ def test_ai_assistant_connection_error(mock_post):
 
 def test_ai_assistant_query_docs():
     """Verify documentation queries register help indices."""
-    from biopro_sdk.host.docs import docs_registry
+    from karcytics_sdk.host.docs import docs_registry
 
     docs_registry.register_page("my_plugin", "index", "/path/to/help.md")
 

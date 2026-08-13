@@ -10,10 +10,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from biopro_sdk.plugin import PluginBase, PluginState
-from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
-from biopro_sdk.plugin.dialogs import show_info
-from biopro_sdk.plugin.wizard import WizardPanel, WizardStep
+from karcytics_sdk.plugin import PluginBase, PluginState
+from karcytics_sdk.plugin.components import PrimaryButton, SecondaryButton
+from karcytics_sdk.plugin.dialogs import show_info
+from karcytics_sdk.plugin.wizard import WizardPanel, WizardStep
 
 from .config import WizardSettings
 

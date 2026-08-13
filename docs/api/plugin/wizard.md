@@ -1,3 +1,3 @@
 # UI Wizard
 
-::: biopro_sdk.plugin.wizard
+::: karcytics_sdk.plugin.wizard

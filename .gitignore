@@ -52,7 +52,7 @@ htmlcov/
 # Built documentation
 site/
 
-# BioPro Local Keys (NEVER commit developer private keys!)
+# Karcytics Local Keys (NEVER commit developer private keys!)
 *.pem
 *.key
 dev_private_key.pem

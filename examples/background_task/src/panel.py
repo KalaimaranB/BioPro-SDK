@@ -10,9 +10,9 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from biopro_sdk.plugin import PluginBase
-from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
-from biopro_sdk.plugin.logging import get_logger
+from karcytics_sdk.plugin import PluginBase
+from karcytics_sdk.plugin.components import PrimaryButton, SecondaryButton
+from karcytics_sdk.plugin.logging import get_logger
 
 from .engine import SimulationEngine
 from .state import CalculationState

@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from PyQt6.QtWidgets import QMessageBox, QWidget
 
-from biopro_sdk.plugin.analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
-from biopro_sdk.plugin.components import (
+from karcytics_sdk.plugin.analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
+from karcytics_sdk.plugin.components import (
     DangerButton,
     HeaderLabel,
     ModuleCard,
@@ -12,7 +12,7 @@ from biopro_sdk.plugin.components import (
     SecondaryButton,
     SubtitleLabel,
 )
-from biopro_sdk.plugin.dialogs import (
+from karcytics_sdk.plugin.dialogs import (
     ask_ok_cancel,
     ask_yes_no,
     get_directory,
@@ -26,10 +26,10 @@ from biopro_sdk.plugin.dialogs import (
     show_info,
     show_warning,
 )
-from biopro_sdk.plugin.events import CentralEventBus
-from biopro_sdk.plugin.io import PluginConfig, get_plugin_logger, load_json, save_json
-from biopro_sdk.plugin.managed_task import FunctionalTask
-from biopro_sdk.plugin.validation import (
+from karcytics_sdk.plugin.events import CentralEventBus
+from karcytics_sdk.plugin.io import PluginConfig, get_plugin_logger, load_json, save_json
+from karcytics_sdk.plugin.managed_task import FunctionalTask
+from karcytics_sdk.plugin.validation import (
     validate_directory_exists,
     validate_file_exists,
     validate_non_negative,
@@ -37,7 +37,7 @@ from biopro_sdk.plugin.validation import (
     validate_positive,
     validate_value_range,
 )
-from biopro_sdk.plugin.wizard import StepIndicator, WizardPanel, WizardStep
+from karcytics_sdk.plugin.wizard import StepIndicator, WizardPanel, WizardStep
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 1. UI COMPONENTS TESTS
@@ -67,7 +67,7 @@ def test_plugin_components():
     lbl2._apply_theme_styles()
 
     # Glow effect testing
-    from biopro_sdk.plugin.components import Colors
+    from karcytics_sdk.plugin.components import Colors
 
     Colors.GLOW_COLOR = "#FF0000"
     btn_glow = PrimaryButton("Glow")
@@ -144,7 +144,7 @@ def test_plugin_io_config_logger(tmp_path):
         assert config.has("param") is True
 
         config.save()
-        assert (tmp_path / ".biopro" / "plugin_configs" / "my_test_plugin.json").exists()
+        assert (tmp_path / ".karcytics" / "plugin_configs" / "my_test_plugin.json").exists()
 
         # Load test reload
         new_config = PluginConfig("my_test_plugin")
@@ -156,7 +156,7 @@ def test_plugin_io_config_logger(tmp_path):
 
     # Test plugin logger name prefix
     logger = get_plugin_logger("cytometry")
-    assert logger.name == "biopro.plugins.cytometry"
+    assert logger.name == "karcytics.plugins.cytometry"
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -381,11 +381,11 @@ def test_dialogs_inputs(mock_double, mock_int, mock_text):
     assert get_double(label="Threshold:") == 0.75
 
 
-@patch("biopro_sdk.plugin.dialogs.ask_yes_no")
-@patch("biopro_sdk.plugin.dialogs.get_text")
+@patch("karcytics_sdk.plugin.dialogs.ask_yes_no")
+@patch("karcytics_sdk.plugin.dialogs.get_text")
 def test_import_assets_workflow(mock_get_text, mock_ask):
     """Test import assets orchestrator workflow."""
-    from biopro_sdk.plugin.dialogs import import_assets_workflow
+    from karcytics_sdk.plugin.dialogs import import_assets_workflow
 
     mock_ask.return_value = True
     mock_get_text.return_value = "exp_folder"
@@ -405,7 +405,7 @@ def test_plugin_logger_adapter():
     """Verify PluginLoggerAdapter processes plugin_id tags correctly."""
     import logging
 
-    from biopro_sdk.plugin.logging import PluginLoggerAdapter, get_logger
+    from karcytics_sdk.plugin.logging import PluginLoggerAdapter, get_logger
 
     logger = get_logger("my_adapted_logger", plugin_id="my_plugin_id")
     assert isinstance(logger, PluginLoggerAdapter)
@@ -418,8 +418,8 @@ def test_plugin_logger_adapter():
 
 
 def test_interfaces_compliance():
-    """Verify BioProPlugin PEP 544 Protocol implementation and signatures."""
-    from biopro_sdk.plugin.interfaces import BioProPlugin
+    """Verify KarcyticsPlugin PEP 544 Protocol implementation and signatures."""
+    from karcytics_sdk.plugin.interfaces import KarcyticsPlugin
 
     class CompliantPlugin:
         __version__ = "1.0.0"
@@ -435,17 +435,17 @@ def test_interfaces_compliance():
             pass
 
     p = CompliantPlugin()
-    assert isinstance(p, BioProPlugin)
+    assert isinstance(p, KarcyticsPlugin)
 
     # Directly call Protocol methods to ensure full coverage of pass lines
-    BioProPlugin.get_panel_class(None)
-    BioProPlugin.cleanup(None)
-    BioProPlugin.shutdown(None)
+    KarcyticsPlugin.get_panel_class(None)
+    KarcyticsPlugin.cleanup(None)
+    KarcyticsPlugin.shutdown(None)
 
 
 def test_preferences_protocol_compliance():
     """Verify PreferenceManagerProtocol PEP 544 Protocol implementation and signatures."""
-    from biopro_sdk.plugin.preferences import PreferenceManagerProtocol
+    from karcytics_sdk.plugin.preferences import PreferenceManagerProtocol
 
     class CompliantPref:
         def load(self):
@@ -480,8 +480,8 @@ def test_preferences_protocol_compliance():
 
 def test_plugin_base_coverage_extensions():
     """Verify history manager creation fallbacks and C++ deleted object error handlers."""
-    from biopro_sdk.plugin.base import PluginBase
-    from biopro_sdk.plugin.state import PluginState
+    from karcytics_sdk.plugin.base import PluginBase
+    from karcytics_sdk.plugin.state import PluginState
 
     class SimpleState(PluginState):
         def to_dict(self):

@@ -1,3 +1,3 @@
 # UI Dialogs
 
-::: biopro_sdk.plugin.dialogs
+::: karcytics_sdk.plugin.dialogs

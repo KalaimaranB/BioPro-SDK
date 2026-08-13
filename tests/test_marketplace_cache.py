@@ -1,6 +1,6 @@
 import pytest
 
-from biopro_sdk.host.marketplace_cache import (
+from karcytics_sdk.host.marketplace_cache import (
     AssetVerificationError,
     AssetVerifier,
     MarketplaceQueryService,

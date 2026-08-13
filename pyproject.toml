@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "biopro-sdk"
-version = "1.4.1"
-description = "Software Development Kit and CLI for BioPro."
+name = "karcytics-sdk"
+version = "2.0.0"
+description = "Software Development Kit and CLI for Karcytics."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -34,17 +34,17 @@ docs = [
 ]
 
 [project.scripts]
-biopro-sdk = "biopro_sdk.cli.main:main"
+karcytics-sdk = "karcytics_sdk.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-biopro_sdk = ["py.typed"]
+karcytics_sdk = ["py.typed"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --tb=short --cov=src/biopro_sdk --cov-report=term-missing --cov-report=html --cov-fail-under=45"
+addopts = "-ra -q --tb=short --cov=src/karcytics_sdk --cov-report=term-missing --cov-report=html --cov-fail-under=45"
 testpaths = ["tests"]
 pythonpath = ["src"]
 filterwarnings = [
@@ -52,7 +52,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["src/biopro_sdk"]
+source = ["src/karcytics_sdk"]
 omit = [
     "*/__init__.py",
 ]

@@ -1,4 +1,4 @@
-"""Unit tests for biopro_sdk.plugin.daemon.PluginUIDaemon."""
+"""Unit tests for karcytics_sdk.plugin.daemon.PluginUIDaemon."""
 
 import time
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from biopro_sdk.plugin.daemon import PluginUIDaemon
+from karcytics_sdk.plugin.daemon import PluginUIDaemon
 
 
 @pytest.fixture
@@ -193,7 +193,7 @@ def test_resolve_daemon_script_finds_plugin_root_layout(tmp_path):
     not just under the newer src/ layout Flow Cytometry uses.
     """
     plugin_id = "test_root_layout_plugin"
-    plugin_dir = tmp_path / ".biopro" / "plugins" / plugin_id
+    plugin_dir = tmp_path / ".karcytics" / "plugins" / plugin_id
     plugin_dir.mkdir(parents=True)
     root_script = plugin_dir / "ui_daemon.py"
     root_script.write_text("# not executed by this test")
@@ -207,7 +207,7 @@ def test_resolve_daemon_script_finds_plugin_root_layout(tmp_path):
 
 def test_resolve_daemon_script_prefers_src_layout_when_both_exist(tmp_path):
     plugin_id = "test_both_layouts_plugin"
-    plugin_dir = tmp_path / ".biopro" / "plugins" / plugin_id
+    plugin_dir = tmp_path / ".karcytics" / "plugins" / plugin_id
     src_dir = plugin_dir / "src" / "biopro_plugins" / plugin_id
     src_dir.mkdir(parents=True)
     src_script = src_dir / "ui_daemon.py"

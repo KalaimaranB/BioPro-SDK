@@ -1,7 +1,7 @@
 import pytest
 
-from biopro_sdk.plugin.context import PluginContext, UndeclaredCapabilityAccess
-from biopro_sdk.plugin.manifest import PluginManifest
+from karcytics_sdk.plugin.context import PluginContext, UndeclaredCapabilityAccess
+from karcytics_sdk.plugin.manifest import PluginManifest
 
 
 def test_plugin_manifest_parsing():

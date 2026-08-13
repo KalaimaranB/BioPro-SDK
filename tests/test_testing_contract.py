@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from biopro_sdk.testing.contract import ContractTestBase
+from karcytics_sdk.testing.contract import ContractTestBase
 
 
 # Dummy module for importlib mock
@@ -47,7 +47,7 @@ min_core_version = "1.0.0"
     class DummyRequest:
         pass
 
-    from biopro_sdk.plugin.manifest import PluginManifest
+    from karcytics_sdk.plugin.manifest import PluginManifest
 
     manifest = PluginManifest.from_toml(manifest_toml)
 

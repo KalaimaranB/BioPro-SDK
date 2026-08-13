@@ -1,12 +1,12 @@
-# 📖 BioPro Developer Handbook
+# 📖 Karcytics Developer Handbook
 
-Welcome to the comprehensive guide for building custom plugins in the BioPro ecosystem! This handbook provides deep practical guides and design patterns to help you build responsive, multi-threaded, and professional-grade scientific widgets.
+Welcome to the comprehensive guide for building custom plugins in the Karcytics ecosystem! This handbook provides deep practical guides and design patterns to help you build responsive, multi-threaded, and professional-grade scientific widgets.
 
 ---
 
 ## 🏛️ Essential File Layout
 
-All BioPro plugins must follow a structured directory layout. Let's look at the standard layout (using the production-grade `hello_world` sandbox template as a blueprint):
+All Karcytics plugins must follow a structured directory layout. Let's look at the standard layout (using the production-grade `hello_world` sandbox template as a blueprint):
 
 ```text
 my_plugin/
@@ -47,7 +47,7 @@ __version__ = "1.0.0"
 __plugin_id__ = "my_plugin"
 
 def get_panel_class() -> type[QWidget]:
-    """Return the main QWidget class for BioPro integration."""
+    """Return the main QWidget class for Karcytics integration."""
     from .ui import MyFirstPanel
     return MyFirstPanel
 ```
@@ -57,11 +57,11 @@ def get_panel_class() -> type[QWidget]:
 ## 🏗️ Core SDK Frameworks
 
 ### 1. State Modeling (`PluginState`)
-In BioPro, all dynamic UI choices (like sliders, spinners, checkboxes, and input texts) are tracked inside a dedicated `@dataclass` extending `PluginState`. This decouples the widget state from individual widget properties.
+In Karcytics, all dynamic UI choices (like sliders, spinners, checkboxes, and input texts) are tracked inside a dedicated `@dataclass` extending `PluginState`. This decouples the widget state from individual widget properties.
 
 ```python
 from dataclasses import dataclass
-from biopro_sdk.plugin import PluginState
+from karcytics_sdk.plugin import PluginState
 
 @dataclass
 class NormalizationState(PluginState):
@@ -80,8 +80,8 @@ The primary UI widget class must subclass `PluginBase`. By inheriting from `Plug
 ```python
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit
-from biopro_sdk.plugin import PluginBase
-from biopro_sdk.plugin.components import PrimaryButton
+from karcytics_sdk.plugin import PluginBase
+from karcytics_sdk.plugin.components import PrimaryButton
 
 class MyFirstPanel(PluginBase):
     def __init__(self, parent=None):
@@ -120,7 +120,7 @@ To do this:
 
 ```python
 from typing import Any
-from biopro_sdk.plugin import AnalysisBase, PluginState
+from karcytics_sdk.plugin import AnalysisBase, PluginState
 
 class NormalizationEngine(AnalysisBase):
     def __init__(self):
@@ -155,10 +155,10 @@ self.start_worker(worker)
 ---
 
 ## 💾 Local Configurations (`PluginConfig`)
-To save user preferences (like paths, recent files, or hardware selections) between application sessions, use `PluginConfig`. It serializes variables to a secure JSON file at `~/.biopro/plugin_configs/{plugin_id}.json`.
+To save user preferences (like paths, recent files, or hardware selections) between application sessions, use `PluginConfig`. It serializes variables to a secure JSON file at `~/.karcytics/plugin_configs/{plugin_id}.json`.
 
 ```python
-from biopro_sdk.plugin import PluginConfig
+from karcytics_sdk.plugin import PluginConfig
 
 class MyPreferences:
     def __init__(self):
@@ -175,7 +175,7 @@ class MyPreferences:
 ---
 
 ## 🎨 Theme Guidelines & Semantic Components
-BioPro handles full HSL color themes. To ensure your custom widgets look stunning in both light and dark mode layouts:
+Karcytics handles full HSL color themes. To ensure your custom widgets look stunning in both light and dark mode layouts:
 1.  **Never hardcode styling:** Avoid styling components with raw hex values (e.g. `background: white` or `color: black`).
 2.  **Use Semantic Components:** Inherit buttons from `PrimaryButton` or `SecondaryButton` to get premium styling, outline curves, and glowing hover states automatically.
 3.  **Implement `_apply_theme_styles`:** Override this method inside your custom widgets to dynamically recolor or repaint graphic assets when theme change events fire.

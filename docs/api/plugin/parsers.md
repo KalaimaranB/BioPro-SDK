@@ -1,5 +1,5 @@
 # Parsers
 
-::: biopro_sdk.plugin.manifest_parser
+::: karcytics_sdk.plugin.manifest_parser
 
-::: biopro_sdk.plugin.security_parser
+::: karcytics_sdk.plugin.security_parser

@@ -3,9 +3,9 @@
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
 
-from biopro_sdk.plugin import PluginBase, PluginState
-from biopro_sdk.plugin.components import PrimaryButton, SecondaryButton
-from biopro_sdk.plugin.dialogs import show_info, show_warning
+from karcytics_sdk.plugin import PluginBase, PluginState
+from karcytics_sdk.plugin.components import PrimaryButton, SecondaryButton
+from karcytics_sdk.plugin.dialogs import show_info, show_warning
 
 
 class HelloWorldState(PluginState):
@@ -31,7 +31,7 @@ class MyFirstPanel(PluginBase):
         layout.setSpacing(15)
 
         # Title Header
-        self.title_label = QLabel("🧬 Welcome to BioPro SDK!")
+        self.title_label = QLabel("🧬 Welcome to Karcytics SDK!")
         self.title_label.setStyleSheet("font-size: 20px; font-weight: bold;")
         layout.addWidget(self.title_label)
 
@@ -81,7 +81,7 @@ class MyFirstPanel(PluginBase):
         show_info(
             self,
             "Greetings!",
-            f"Hello, {name}! You have successfully integrated a custom BioPro plugin widget.",
+            f"Hello, {name}! You have successfully integrated a custom Karcytics plugin widget.",
         )
 
     @pyqtSlot()

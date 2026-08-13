@@ -1,3 +1,3 @@
 # UI Components
 
-::: biopro_sdk.plugin.components
+::: karcytics_sdk.plugin.components

@@ -1,8 +1,8 @@
-# 🧬 BioPro SDK: Developer Portal
+# 🧬 Karcytics SDK: Developer Portal
 
-Welcome to the official developer portal and documentation site for the **BioPro Software Development Kit (SDK)**!
+Welcome to the official developer portal and documentation site for the **Karcytics Software Development Kit (SDK)**!
 
-BioPro SDK is a state-of-the-art, high-performance Python framework designed to build secure, multi-threaded, and theme-compliant scientific analysis plugins. It is engineered with robust cryptographic trust controls, decoupled UI/engine execution boundaries, and seamless thread pool delegation.
+Karcytics SDK is a state-of-the-art, high-performance Python framework designed to build secure, multi-threaded, and theme-compliant scientific analysis plugins. It is engineered with robust cryptographic trust controls, decoupled UI/engine execution boundaries, and seamless thread pool delegation.
 
 ---
 
@@ -11,9 +11,9 @@ BioPro SDK is a state-of-the-art, high-performance Python framework designed to 
 A developer looking at the repository files should be able to navigate instantly. Here is a comprehensive breakdown of the file system and module layout:
 
 ```text
-biopro-sdk/
+karcytics-sdk/
 ├── src/                          # Main source files
-│   └── biopro_sdk/
+│   └── karcytics_sdk/
 │       ├── plugin/               # Foundation for plugin developers
 │       │   ├── base.py           # Core PluginBase and PluginState definitions
 │       │   ├── components.py     # Custom semantic UI buttons and cards
@@ -73,10 +73,10 @@ graph TD
 
 ### 🧭 Navigating the Pillars:
 
-0.  **🚀 [Developer Onboarding](Developer_Onboarding.md):** The ultimate master guide for new and existing V1 developers migrating to the BioPro V2 architecture. Start here!
+0.  **🚀 [Developer Onboarding](Developer_Onboarding.md):** The ultimate master guide for new and existing V1 developers migrating to the Karcytics V2 architecture. Start here!
 1.  **🏁 [Quickstart Guide](Getting_Started.md):** Learn how to prepare your local virtual environment using `uv`, generate onboarding keys, bootstrap a new plugin repository, and cryptographically sign your work.
 2.  **📖 [Developer Handbook](Dev_Handbook.md):** Deep technical workflows on layouts, dynamic state binding, persistent local storage, and the PyQt6 event model.
-3.  **🛡️ [CI/CD & Security](CI_CD_Guide.md):** Learn how the BioPro security model signs code, performs integrity checks, and integrates into GitHub Actions workflows.
+3.  **🛡️ [CI/CD & Security](CI_CD_Guide.md):** Learn how the Karcytics security model signs code, performs integrity checks, and integrates into GitHub Actions workflows.
 4.  **🔍 API Reference:** Comprehensive technical references generated directly from the source code:
     *   **[Plugin Core](api/plugin/base.md):** `PluginBase`, `PluginState`, UI Components, and more.
     *   **[Host & Trust](api/host/trust.md):** `TrustManager`, Plugin Signing, and AI integration.

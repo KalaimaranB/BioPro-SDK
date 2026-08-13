@@ -1,5 +1,5 @@
 # Base & Interfaces
 
-::: biopro_sdk.plugin.base
+::: karcytics_sdk.plugin.base
 
-::: biopro_sdk.plugin.interfaces
+::: karcytics_sdk.plugin.interfaces

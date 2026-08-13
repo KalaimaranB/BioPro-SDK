@@ -1,8 +1,8 @@
-"""Unit tests for biopro_sdk.plugin.daemon.PluginDaemon."""
+"""Unit tests for karcytics_sdk.plugin.daemon.PluginDaemon."""
 
 import pytest
 
-from biopro_sdk.plugin.daemon import PluginDaemon
+from karcytics_sdk.plugin.daemon import PluginDaemon
 
 
 @pytest.fixture

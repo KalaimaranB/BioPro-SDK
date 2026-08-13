@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Demonstrates executing heavy computational loops in a background worker thread without blocking the UI thread."
 requires-python = ">=3.11"
 authors = [
-    { name = "BioPro SDK Team", role = "Lead Developer" },
+    { name = "Karcytics SDK Team", role = "Lead Developer" },
 ]
 
 [tool.biopro.plugin]

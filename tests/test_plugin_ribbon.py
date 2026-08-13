@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget
 
-from biopro_sdk.plugin.ribbon import BioRibbon
+from karcytics_sdk.plugin.ribbon import BioRibbon
 
 
 def test_bioribbon_creation(qapp):

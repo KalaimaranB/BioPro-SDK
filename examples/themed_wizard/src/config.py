@@ -1,6 +1,6 @@
 """Configuration management for the wizard blueprint plugin."""
 
-from biopro_sdk.plugin import PluginConfig
+from karcytics_sdk.plugin import PluginConfig
 
 
 class WizardSettings:

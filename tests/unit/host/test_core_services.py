@@ -1,8 +1,8 @@
-"""Unit tests for biopro_sdk.host.core_services."""
+"""Unit tests for karcytics_sdk.host.core_services."""
 
 import pytest
 
-from biopro_sdk.host.core_services import CoreServicesClient, CoreServicesServer
+from karcytics_sdk.host.core_services import CoreServicesClient, CoreServicesServer
 
 
 @pytest.fixture
