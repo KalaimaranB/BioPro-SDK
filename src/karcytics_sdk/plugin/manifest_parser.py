@@ -54,7 +54,7 @@ class ManifestParser:
                 data = tomllib.load(f)
 
             project = data.get("project", {})
-            plugin = data.get("tool", {}).get("biopro", {}).get("plugin", {})
+            plugin = data.get("tool", {}).get("karcytics", {}).get("plugin", {})
 
             # Merge fields to present a unified V2 style dictionary to the rest of the application
             flat_manifest = {

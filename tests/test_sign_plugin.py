@@ -32,7 +32,7 @@ def test_project_sign_plugin_success_and_errors(tmp_path, caplog):
     toml_content = """[project]
 name = "MyPlugin"
 version = "1.0.0"
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "my_plugin"
 entry_point = "m:f"
 authors = [{name = "Test", role = "Developer"}]

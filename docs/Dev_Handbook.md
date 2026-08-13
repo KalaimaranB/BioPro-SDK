@@ -30,7 +30,7 @@ authors = [
     { name = "Dr. Scientist" }
 ]
 
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "my_plugin"
 min_core_version = "1.4.9"
 entry_point = "my_plugin:initialize"

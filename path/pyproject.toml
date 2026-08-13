@@ -18,10 +18,10 @@ dev = [
     "mkdocs-material"
 ]
 
-[tool.biopro.plugin]
+[tool.karcytics.plugin]
 id = "path"
 min_core_version = "1.4.9"
-entry_point = "biopro_plugins.path:initialize"
+entry_point = "karcytics_plugins.path:initialize"
 requires = ["task_scheduler", "logger", "event_bus"]
 authors = [
   { name = "Developer Name", role = "Developer", permissions = ["read_workspace", "write_assets"] }
