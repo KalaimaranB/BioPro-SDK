@@ -4,7 +4,7 @@ from unittest.mock import patch
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from biopro_sdk.host.sign_plugin import PluginSigner, TrustChain, main
+from karcytics_sdk.host.sign_plugin import PluginSigner, TrustChain, main
 
 
 def test_project_sign_plugin_missing_files(tmp_path, caplog):
@@ -142,20 +142,20 @@ def test_main_cli_routing(tmp_path):
 
     os.environ["TEST_ENV_KEY"] = project_pem
 
-    with patch("biopro_sdk.host.sign_plugin.PluginSigner") as mock:
+    with patch("karcytics_sdk.host.sign_plugin.PluginSigner") as mock:
         instance = mock.return_value
 
         # Project sign
-        with patch("sys.argv", ["biopro-sdk", "project-sign", "my_path", "--key-env", "TEST_ENV_KEY"]):
+        with patch("sys.argv", ["karcytics-sdk", "project-sign", "my_path", "--key-env", "TEST_ENV_KEY"]):
             main()
             instance.project_sign_plugin.assert_called()
 
         # Delegate
-        with patch("sys.argv", ["biopro-sdk", "delegate", "pub_path", "Dev Name"]):
+        with patch("sys.argv", ["karcytics-sdk", "delegate", "pub_path", "Dev Name"]):
             main()
             instance.delegate_identity.assert_called()
 
         # Registry
-        with patch("sys.argv", ["biopro-sdk", "registry"]):
+        with patch("sys.argv", ["karcytics-sdk", "registry"]):
             main()
             instance.print_registry_entry.assert_called()

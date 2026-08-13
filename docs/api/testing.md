@@ -1,3 +1,3 @@
 # Testing & Contracts
 
-::: biopro_sdk.testing.contract
+::: karcytics_sdk.testing.contract

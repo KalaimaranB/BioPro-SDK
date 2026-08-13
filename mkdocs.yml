@@ -1,7 +1,7 @@
-site_name: BioPro SDK
-site_description: Software Development Kit and CLI for BioPro desktop plugins.
+site_name: Karcytics SDK
+site_description: Software Development Kit and CLI for Karcytics desktop plugins.
 site_author: Kalaimaran Balasothy
-site_url: https://KalaimaranB.github.io/BioPro-SDK/
+site_url: https://KalaimaranB.github.io/Karcytics-SDK/
 
 theme:
   name: material

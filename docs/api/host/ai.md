@@ -1,3 +1,3 @@
 # AI Server
 
-::: biopro_sdk.host.ai
+::: karcytics_sdk.host.ai

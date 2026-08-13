@@ -1,6 +1,6 @@
 # 🛡️ CI/CD, Cryptography & Security Guide
 
-This guide covers the cryptographic identity model, manual local plugin signing workflows, automated GitHub Actions quality gates, and supply chain security compliance within the BioPro SDK ecosystem.
+This guide covers the cryptographic identity model, manual local plugin signing workflows, automated GitHub Actions quality gates, and supply chain security compliance within the Karcytics SDK ecosystem.
 
 ---
 
@@ -17,9 +17,9 @@ graph TD
 ```
 
 ### 1. Developer Keys
-When you execute `biopro-sdk init-identity`, the SDK generates an asymmetric **Ed25519** keypair:
-*   **Private Key (`~/.biopro/dev_keys/private.key`):** A secure PKCS#8 PEM-encoded private key file. **CRITICAL:** Keep this file confidential. Never commit it to git repositories or expose it in CI logs.
-*   **Public Key Certificate (`~/.biopro/dev_keys/public.pub`):** A public certificate stub. It establishes your developer identity for subsequent signing operations.
+When you execute `karcytics-sdk init-identity`, the SDK generates an asymmetric **Ed25519** keypair:
+*   **Private Key (`~/.karcytics/dev_keys/private.key`):** A secure PKCS#8 PEM-encoded private key file. **CRITICAL:** Keep this file confidential. Never commit it to git repositories or expose it in CI logs.
+*   **Public Key Certificate (`~/.karcytics/dev_keys/public.pub`):** A public certificate stub. It establishes your developer identity for subsequent signing operations.
 
 ---
 
@@ -27,19 +27,19 @@ When you execute `biopro-sdk init-identity`, the SDK generates an asymmetric **E
 
 To prepare a plugin folder for distribution, run the signing command:
 ```bash
-biopro-sdk sign <path_to_plugin_dir>
+karcytics-sdk sign <path_to_plugin_dir>
 ```
 
 ### The signing sequence:
 1.  **Integrity Hash Computation:** The CLI indexes all files in your `src/` directory, computes their SHA-256 hashes, and writes them into `security.json`, along with the hash of `pyproject.toml`.
-2.  **Ledger Signing:** The CLI signs the `security.json` bytes using your developer private key (`~/.biopro/dev_keys/private.key`), and writes `signature.bin` to the plugin root.
+2.  **Ledger Signing:** The CLI signs the `security.json` bytes using your developer private key (`~/.karcytics/dev_keys/private.key`), and writes `signature.bin` to the plugin root.
 3.  **Trust Chain Bundling:** The CLI bundles your developer public key into a `trust_chain.json` file inside the plugin root to establish cryptographic identity.
 
 ---
 
 ## 🤖 Automated CI/CD Workflows (GitHub Actions)
 
-When you run `biopro-sdk bootstrap <plugin_dir>`, the SDK automatically generates three best-practice GitHub Actions workflows in `.github/workflows/` to automate your CI/CD pipeline:
+When you run `karcytics-sdk bootstrap <plugin_dir>`, the SDK automatically generates three best-practice GitHub Actions workflows in `.github/workflows/` to automate your CI/CD pipeline:
 
 ### 1. `ci.yml` (Tests & Linting)
 Runs automatically on every push or Pull Request to `main` or `develop`.
@@ -56,7 +56,7 @@ Runs on pushes to `main` (or manually).
 ### 3. `release.yml` (Auto-Release & Registry)
 Runs automatically when code is pushed to `main` with a bumped version in `pyproject.toml`.
 - Detects new versions using a lightweight `tomllib` parser.
-- Tags the repository and executes `biopro-sdk evaluate` and `biopro-sdk project-sign`.
+- Tags the repository and executes `karcytics-sdk evaluate` and `karcytics-sdk project-sign`.
 - Bundles the plugin into a production-ready `.zip` archive (excluding tests, venvs, and Git history).
 - Creates a GitHub Release with auto-generated release notes.
 - Automatically opens a Pull Request on the central `BioPro-Distribution` repository to update the `registry.json` ledger.
@@ -66,7 +66,7 @@ Runs automatically when code is pushed to `main` with a bumped version in `pypro
 
 ## 🔒 Supply Chain Security Gates
 
-BioPro SDK enforces maximum transparency and security using three foundational gates:
+Karcytics SDK enforces maximum transparency and security using three foundational gates:
 
 ### 1. Software Bill of Materials (SBOM)
 A comprehensive SBOM catalogs all direct and transitive dependencies, protecting your applications from zero-day library vulnerabilities.

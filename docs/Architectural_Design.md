@@ -1,6 +1,6 @@
 # 🧠 Architectural Design & Deep Dives
 
-This document explains the core software engineering principles, design patterns, and cryptographic strategies that govern the **BioPro SDK**.
+This document explains the core software engineering principles, design patterns, and cryptographic strategies that govern the **Karcytics SDK**.
 
 ---
 
@@ -8,7 +8,7 @@ This document explains the core software engineering principles, design patterns
 
 A common anti-pattern in desktop applications is coupling computational logic (e.g. image filters, data modeling, array processing) directly inside graphical classes (e.g. clicking a button calls `numpy` operations inline). This makes the code untestable, prone to freezing the GUI, and locked to a graphical interface.
 
-BioPro SDK enforces a strict **Decoupled Boundary Model**:
+Karcytics SDK enforces a strict **Decoupled Boundary Model**:
 
 ```text
 +-----------------------+              +-----------------------+
@@ -33,7 +33,7 @@ BioPro SDK enforces a strict **Decoupled Boundary Model**:
 
 Testing graphical user interfaces (GUIs) usually requires a display server (X11, Wayland, or native macOS Quartz). This often causes standard automated CI runners to crash or hang indefinitely with errors like `cannot connect to X server`.
 
-BioPro SDK solves this by orchestrating a **Headless Mocking Architecture**:
+Karcytics SDK solves this by orchestrating a **Headless Mocking Architecture**:
 
 ```text
 [PyTest Runner] -> [QApplication Fixture] -> [Headless Mode Enabled] -> [Mock Prefs Injected]
@@ -50,7 +50,7 @@ BioPro SDK solves this by orchestrating a **Headless Mocking Architecture**:
 
 Scientific applications often load massive data files (high-resolution microscopy images, cytometry binary arrays) directly into RAM. If a plugin panel is closed by a user but background worker threads remain active, it creates immediate memory leaks and orphan threads.
 
-BioPro SDK uses **Resource Acquisition Is Initialization (RAII)** patterns:
+Karcytics SDK uses **Resource Acquisition Is Initialization (RAII)** patterns:
 1.  **Thread Pool Binding:** Asynchronous worker threads are registered inside a centralized `QThreadPool` on the parent plugin object.
 2.  **Automated Disconnection:** When a panel is closed, the destructor (`__del__` or `closeEvent`) is triggered. The framework automatically signals any running background engines to cancel execution (`engine.cancel()`), waits for threads to exit safely, and releases file handles.
 3.  **No Dangling Pointers:** We enforce standard PyQt6 C++ pointer validation checks. Before any signal is emitted by background threads, the worker verifies that the graphical receiver object has not been deleted by the Qt garbage collector, preventing common `RuntimeError: wrapped C/C++ object has been deleted` crashes.

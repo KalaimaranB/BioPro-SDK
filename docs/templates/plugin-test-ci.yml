@@ -1,4 +1,4 @@
-name: BioPro Standalone Plugin Test
+name: Karcytics Standalone Plugin Test
 
 on:
   push:
@@ -30,11 +30,11 @@ jobs:
         run: |
           brew install qt
 
-      - name: Install BioPro SDK & Dependencies
+      - name: Install Karcytics SDK & Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install uv
-          uv pip install --system biopro-sdk pytest pytest-qt PyQt6-headless
+          uv pip install --system karcytics-sdk pytest pytest-qt PyQt6-headless
 
       - name: Run Plugin Unit Tests
         run: |

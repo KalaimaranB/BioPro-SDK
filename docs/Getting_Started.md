@@ -1,12 +1,12 @@
 # 🏁 Quickstart Guide
 
-This step-by-step tutorial walks you through setting up your local environment, creating a new BioPro module from scratch, understanding the repository structure, and securing it with cryptographic signing.
+This step-by-step tutorial walks you through setting up your local environment, creating a new Karcytics module from scratch, understanding the repository structure, and securing it with cryptographic signing.
 
 ---
 
 ## 🛠️ Step 1: Environment Setup
 
-BioPro SDK utilizes **`uv`** for lightning-fast and highly secure dependency management. Follow these instructions to initialize your workspace:
+Karcytics SDK utilizes **`uv`** for lightning-fast and highly secure dependency management. Follow these instructions to initialize your workspace:
 
 ### 1. Initialize Python Environment
 Create a local Python virtual environment and activate it:
@@ -21,42 +21,42 @@ source .venv/bin/activate
 .venv\Scripts\Activate.ps1
 ```
 
-### 2. Install BioPro SDK
+### 2. Install Karcytics SDK
 Install the SDK into your virtual environment:
 ```bash
 uv pip install -e .
 ```
-This registers the global CLI shim `biopro-sdk` directly into your path!
+This registers the global CLI shim `karcytics-sdk` directly into your path!
 
 ---
 
 ## 🔑 Step 2: Initialize Your Developer Identity
 
-To load plugins into a production instance of the host application, they must be signed by an approved private key. BioPro provides a standard command-line utility to bootstrap your development environment.
+To load plugins into a production instance of the host application, they must be signed by an approved private key. Karcytics provides a standard command-line utility to bootstrap your development environment.
 
 Run the onboarding command:
 ```bash
-biopro-sdk init-identity
+karcytics-sdk init-identity
 ```
 
 ### What happens behind the scenes?
-1.  **Generates an Ed25519 Private Key:** Writes a PKCS#8 pem file to `~/.biopro/dev_keys/private.key`.
-2.  **Generates Public Key:** Writes a public certificate stub to `~/.biopro/dev_keys/public.pub`.
+1.  **Generates an Ed25519 Private Key:** Writes a PKCS#8 pem file to `~/.karcytics/dev_keys/private.key`.
+2.  **Generates Public Key:** Writes a public certificate stub to `~/.karcytics/dev_keys/public.pub`.
 3.  **Local Registration:** The CLI establishes this key pair as your local developer identity for subsequent signing operations.
 
 ---
 
-## 🏗️ Step 3: Bootstrap a New BioPro Module
+## 🏗️ Step 3: Bootstrap a New Karcytics Module
 
 Instead of creating files manually, you can use the SDK CLI to automatically scaffold a new plugin repository that conforms to the latest V2 architecture.
 
 Run the bootstrap command:
 ```bash
-biopro-sdk bootstrap my_first_plugin
+karcytics-sdk bootstrap my_first_plugin
 ```
 
 ### How to Organize a Repo
-The bootstrap command creates the standard directory structure required by BioPro. Let's look at how your repo is organized:
+The bootstrap command creates the standard directory structure required by Karcytics. Let's look at how your repo is organized:
 
 ```text
 my_first_plugin/
@@ -69,19 +69,19 @@ my_first_plugin/
     └── workflows/           # CI/CD pipelines (ci, deploy-docs, release)
 ```
 
-* **`pyproject.toml`**: The split-manifest architecture uses this standard Python file to define your plugin ID, required SDK version, permissions, dependencies, and the `entry_point` for the BioPro host application.
+* **`pyproject.toml`**: The split-manifest architecture uses this standard Python file to define your plugin ID, required SDK version, permissions, dependencies, and the `entry_point` for the Karcytics host application.
 * **`src/`**: All your Python source code lives here. The `__init__.py` file contains a class inheriting from `AnalysisBase` (or `PluginBase`) which serves as the entry point.
-* **`docs/`**: Markdown documentation files that will be compiled into the BioPro Help Center.
+* **`docs/`**: Markdown documentation files that will be compiled into the Karcytics Help Center.
 
 ---
 
 ## 🔐 Step 4: Security Signing
 
-Before your plugin can be loaded by the BioPro host application, it must be cryptographically signed. The Trust Engine verifies that the code hasn't been tampered with.
+Before your plugin can be loaded by the Karcytics host application, it must be cryptographically signed. The Trust Engine verifies that the code hasn't been tampered with.
 
 Run the signing utility on your plugin directory:
 ```bash
-biopro-sdk sign my_first_plugin
+karcytics-sdk sign my_first_plugin
 ```
 
 ### What happens during signing?
@@ -102,21 +102,21 @@ my_first_plugin/
 └── .github/
 ```
 
-**Note:** You must re-run `biopro-sdk sign my_first_plugin` *every time* you modify your code before testing it in the host application!
+**Note:** You must re-run `karcytics-sdk sign my_first_plugin` *every time* you modify your code before testing it in the host application!
 
 ---
 
 ## 🚀 Step 5: Validate Your Plugin
 
-To ensure your newly created and signed plugin meets all BioPro SDK standards before distribution, you can run the built-in evaluator:
+To ensure your newly created and signed plugin meets all Karcytics SDK standards before distribution, you can run the built-in evaluator:
 
 ```bash
-biopro-sdk evaluate my_first_plugin
+karcytics-sdk evaluate my_first_plugin
 ```
 
 This will run a 3-part audit:
 1. **Manifest Audit:** Verifies the `pyproject.toml` configuration.
-2. **Structure & SDK Compliance:** Checks that you are properly subclassing BioPro base classes like `AnalysisBase`.
+2. **Structure & SDK Compliance:** Checks that you are properly subclassing Karcytics base classes like `AnalysisBase`.
 3. **Security Audit:** Validates that the cryptographic signatures are present and correct.
 
-If you get a green status, your plugin is ready to be loaded into the BioPro host application!
+If you get a green status, your plugin is ready to be loaded into the Karcytics host application!

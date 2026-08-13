@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from biopro_sdk.plugin.workflow import WorkflowAttachment, WorkflowContext
+from karcytics_sdk.plugin.workflow import WorkflowAttachment, WorkflowContext
 
 
 def test_attachment_roundtrip_dict():

@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "Exhibits guided wizard steps, real-time theme adaptation, local configurations, and undo/redo stacks."
 requires-python = ">=3.11"
 authors = [
-    { name = "BioPro SDK Team", role = "Lead Developer" },
+    { name = "Karcytics SDK Team", role = "Lead Developer" },
 ]
 
 [tool.biopro.plugin]

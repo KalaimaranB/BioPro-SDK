@@ -4,8 +4,8 @@ import math
 import time
 from typing import Any, cast
 
-from biopro_sdk.plugin import AnalysisBase, PluginState
-from biopro_sdk.plugin.logging import get_logger
+from karcytics_sdk.plugin import AnalysisBase, PluginState
+from karcytics_sdk.plugin.logging import get_logger
 
 from .state import CalculationState
 

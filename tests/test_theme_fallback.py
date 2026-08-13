@@ -1,4 +1,4 @@
-from biopro_sdk.plugin.theme_fallback import Colors, Fonts, theme_manager
+from karcytics_sdk.plugin.theme_fallback import Colors, Fonts, theme_manager
 
 
 def test_theme_fallback_colors():

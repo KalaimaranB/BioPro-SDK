@@ -1,5 +1,5 @@
 # Analysis Engine
 
-::: biopro_sdk.plugin.analysis
+::: karcytics_sdk.plugin.analysis
 
-::: biopro_sdk.plugin.managed_task
+::: karcytics_sdk.plugin.managed_task

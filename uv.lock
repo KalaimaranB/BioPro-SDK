@@ -36,46 +36,6 @@ wheels = [
 ]
 
 [[package]]
-name = "biopro-sdk"
-version = "1.4.1"
-source = { editable = "." }
-dependencies = [
-    { name = "cryptography" },
-    { name = "msgpack" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "pandas" },
-    { name = "pillow" },
-    { name = "pyqt6" },
-    { name = "requests" },
-    { name = "scikit-image" },
-    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-]
-
-[package.optional-dependencies]
-docs = [
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cryptography", specifier = ">=41.0.0" },
-    { name = "mkdocs-material", marker = "extra == 'docs'" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'" },
-    { name = "msgpack", specifier = ">=1.0.0" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pillow", specifier = ">=12.3.0" },
-    { name = "pyqt6", specifier = ">=6.5.0" },
-    { name = "requests", specifier = ">=2.28.0" },
-    { name = "scikit-image", specifier = ">=0.26.0" },
-    { name = "scipy" },
-]
-provides-extras = ["docs"]
-
-[[package]]
 name = "certifi"
 version = "2026.4.22"
 source = { registry = "https://pypi.org/simple" }
@@ -375,6 +335,46 @@ sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
 ]
+
+[[package]]
+name = "karcytics-sdk"
+version = "2.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cryptography" },
+    { name = "msgpack" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "pandas" },
+    { name = "pillow" },
+    { name = "pyqt6" },
+    { name = "requests" },
+    { name = "scikit-image" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+
+[package.optional-dependencies]
+docs = [
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cryptography", specifier = ">=41.0.0" },
+    { name = "mkdocs-material", marker = "extra == 'docs'" },
+    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'" },
+    { name = "msgpack", specifier = ">=1.0.0" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pillow", specifier = ">=12.3.0" },
+    { name = "pyqt6", specifier = ">=6.5.0" },
+    { name = "requests", specifier = ">=2.28.0" },
+    { name = "scikit-image", specifier = ">=0.26.0" },
+    { name = "scipy" },
+]
+provides-extras = ["docs"]
 
 [[package]]
 name = "lazy-loader"

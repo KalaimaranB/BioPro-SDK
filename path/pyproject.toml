@@ -1,7 +1,7 @@
 [project]
 name = "Path"
 version = "1.0.0"
-description = "A high-performance BioPro data plugin analyzing Path."
+description = "A high-performance Karcytics data plugin analyzing Path."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [

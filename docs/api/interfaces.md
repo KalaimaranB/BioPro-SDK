@@ -1,3 +1,3 @@
 # Interfaces
 
-::: biopro_sdk.interfaces
+::: karcytics_sdk.interfaces

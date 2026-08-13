@@ -7,12 +7,12 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from biopro_sdk.host.docs import PluginDocumentation
-from biopro_sdk.host.sign_plugin import sign_plugin
-from biopro_sdk.host.trust_manager import TrustManager
-from biopro_sdk.host.trust_overrides import LocalTrustRegistry
-from biopro_sdk.host.trust_path import TrustChain, TrustLink
-from biopro_sdk.host.trust_storage import TrustCache
+from karcytics_sdk.host.docs import PluginDocumentation
+from karcytics_sdk.host.sign_plugin import sign_plugin
+from karcytics_sdk.host.trust_manager import TrustManager
+from karcytics_sdk.host.trust_overrides import LocalTrustRegistry
+from karcytics_sdk.host.trust_path import TrustChain, TrustLink
+from karcytics_sdk.host.trust_storage import TrustCache
 
 
 def _dict_to_toml(d):
@@ -56,16 +56,16 @@ def _dict_to_toml(d):
 @pytest.fixture
 def temp_sec_env(tmp_path):
     """Setup a pristine local security workspace."""
-    biopro_dir = tmp_path / ".biopro"
-    biopro_dir.mkdir()
+    karcytics_dir = tmp_path / ".karcytics"
+    karcytics_dir.mkdir()
 
     with patch("pathlib.Path.home", return_value=tmp_path):
-        yield tmp_path, biopro_dir
+        yield tmp_path, karcytics_dir
 
 
 def test_trust_manager_root_loading_and_developer_trust(temp_sec_env):
     """Test loading anchors and adding new developer trust dynamically."""
-    _, biopro_dir = temp_sec_env
+    _, karcytics_dir = temp_sec_env
 
     # 1. Initialize empty trust manager
     tm = TrustManager()
@@ -82,7 +82,7 @@ def test_trust_manager_root_loading_and_developer_trust(temp_sec_env):
     assert success is True
 
     # Verify the manual public key file got saved
-    pub_file = biopro_dir / "trusted_roots" / "manual_dr._biotech.pub"
+    pub_file = karcytics_dir / "trusted_roots" / "manual_dr._biotech.pub"
     assert pub_file.exists()
 
     # Reloaded roots must now include it
@@ -92,7 +92,7 @@ def test_trust_manager_root_loading_and_developer_trust(temp_sec_env):
 def test_trust_chain_de_serialization(tmp_path):
     """Test parsing and serializing multi-link cryptographic trust chains."""
     link1 = TrustLink(subject_name="Dev", subject_pub="aa", issuer_name="Root", signature="bb")
-    link2 = TrustLink(subject_name="Root", subject_pub="cc", issuer_name="BioPro Authority", signature="dd")
+    link2 = TrustLink(subject_name="Root", subject_pub="cc", issuer_name="Karcytics Authority", signature="dd")
     chain = TrustChain(links=[link1, link2])
 
     # Serialize to file
@@ -111,7 +111,7 @@ def test_trust_chain_de_serialization(tmp_path):
 
 def test_local_trust_registry(temp_sec_env):
     """Test LocalTrustRegistry is_locally_trusted overrides logic."""
-    _, biopro_dir = temp_sec_env
+    _, karcytics_dir = temp_sec_env
     registry = LocalTrustRegistry()
 
     hashes = {"main.py": "hash_123"}
@@ -132,7 +132,7 @@ def test_local_trust_registry(temp_sec_env):
 
 def test_trust_cache_operations(temp_sec_env, tmp_path):
     """Test Registry storage and TrustCache speed caching operations."""
-    _, biopro_dir = temp_sec_env
+    _, karcytics_dir = temp_sec_env
 
     # Create mock plugin folder
     plugin_path = tmp_path / "cached_plugin"
@@ -153,7 +153,7 @@ def test_trust_cache_operations(temp_sec_env, tmp_path):
 
 def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
     """Test verify_plugin against a fully signed cryptographically valid chain."""
-    _, biopro_dir = temp_sec_env
+    _, karcytics_dir = temp_sec_env
 
     # 1. Generate keys
     root_private = ed25519.Ed25519PrivateKey.generate()
@@ -233,7 +233,7 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
     link_root = TrustLink(
         subject_name="Onboarding Root",
         subject_pub=root_pub_raw.hex(),
-        issuer_name="BioPro Authority",
+        issuer_name="Karcytics Authority",
         signature=root_private.sign(root_pub_raw).hex(),  # self-signed root link
     )
     chain = TrustChain(links=[link_dev, link_root])
@@ -244,7 +244,7 @@ def test_trust_manager_verify_plugin_successful_chain(temp_sec_env, tmp_path):
     res = tm.verify_plugin(plugin_dir)
     assert res.success is True
     assert res.trust_level == "verified_developer"
-    assert res.trust_path[0]["name"] == "BioPro Core"
+    assert res.trust_path[0]["name"] == "Karcytics Core"
     assert res.trust_path[1]["name"] == "Onboarding Root"
     assert res.trust_path[2]["name"] == "Developer"
 
@@ -297,7 +297,7 @@ def test_plugin_signer_missing_files(tmp_path):
 
 def test_sign_plugin_direct(tmp_path):
     """Test sign_plugin with valid mock manifest and credentials."""
-    from biopro_sdk.host.sign_plugin import sign_plugin
+    from karcytics_sdk.host.sign_plugin import sign_plugin
 
     plugin_dir = tmp_path / "my_plugin"
     plugin_dir.mkdir()
@@ -340,13 +340,13 @@ def test_sign_plugin_direct(tmp_path):
 
 def test_trust_manager_roots_and_developer(tmp_path):
     """Verify PEM key anchoring, key lengths, and cache clears in TrustManager."""
-    from biopro_sdk.host.trust_manager import TrustManager
+    from karcytics_sdk.host.trust_manager import TrustManager
 
     with patch("pathlib.Path.home", return_value=tmp_path):
         tm = TrustManager()
 
         # Test loading a PEM key anchor
-        roots_dir = tmp_path / ".biopro" / "trusted_roots"
+        roots_dir = tmp_path / ".karcytics" / "trusted_roots"
         roots_dir.mkdir(parents=True, exist_ok=True)
 
         # Write valid PEM public key to glob
@@ -379,7 +379,7 @@ def test_trust_manager_roots_and_developer(tmp_path):
 
 def test_trust_cache_details(tmp_path):
     """Verify custom cache paths, json decode errors, and mtime comparisons."""
-    from biopro_sdk.host.trust_storage import TrustCache
+    from karcytics_sdk.host.trust_storage import TrustCache
 
     # 1. Custom cache path
     custom_file = tmp_path / "custom_cache.json"
@@ -427,7 +427,7 @@ def test_trust_cache_details(tmp_path):
 
 def test_local_trust_registry_tampering_and_save(tmp_path):
     """Verify local machine trust override storage, signatures, tampering, and save failures."""
-    from biopro_sdk.host.trust_overrides import LocalTrustRegistry
+    from karcytics_sdk.host.trust_overrides import LocalTrustRegistry
 
     with patch("pathlib.Path.home", return_value=tmp_path):
         # 1. First instantiation generates machine key

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from biopro_sdk.plugin.base import PluginBase
-from biopro_sdk.plugin.state import PluginState
+from karcytics_sdk.plugin.base import PluginBase
+from karcytics_sdk.plugin.state import PluginState
 
 
 @dataclass
@@ -122,7 +122,7 @@ def test_plugin_undo_redo_history():
     assert spy.call_count == 3
 
 
-@patch("biopro_sdk.plugin.base.theme_manager")
+@patch("karcytics_sdk.plugin.base.theme_manager")
 def test_theme_propagation(mock_theme_manager):
     """Verify applying base stylesheets propagates styles correctly."""
     plugin = MockPlugin(plugin_id="test_theme")
@@ -145,7 +145,7 @@ def test_cleanup_and_destructor_raii():
         [("heavy_asset", plugin.heavy_asset)],  # attributes of Instance
     ]
 
-    with patch.dict(sys.modules, {"biopro.core.resource_inspector": MagicMock(ResourceInspector=mock_inspector)}):
+    with patch.dict(sys.modules, {"karcytics.core.resource_inspector": MagicMock(ResourceInspector=mock_inspector)}):
         # Trigger cleanup
         plugin.cleanup()
 

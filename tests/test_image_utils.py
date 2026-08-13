@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from biopro_sdk.contrib.image_utils import (
+from karcytics_sdk.contrib.image_utils import (
     auto_crop_to_bands,
     auto_detect_inversion,
     crop_to_content,

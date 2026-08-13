@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from biopro_sdk.plugin import PluginState
+from karcytics_sdk.plugin import PluginState
 
 
 @dataclass

@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from biopro_sdk.cli.commands import migrate, scaffold, security
+from karcytics_sdk.cli.commands import migrate, scaffold, security
 
 
 class DummyArgs:
@@ -10,7 +10,7 @@ class DummyArgs:
             setattr(self, k, v)
 
 
-@patch("biopro_sdk.cli.commands.security.PluginSigner")
+@patch("karcytics_sdk.cli.commands.security.PluginSigner")
 def test_security_init(mock_signer_class):
     mock_signer = mock_signer_class.return_value
     args = DummyArgs()
@@ -18,7 +18,7 @@ def test_security_init(mock_signer_class):
     mock_signer.init_identity.assert_called_once()
 
 
-@patch("biopro_sdk.cli.commands.security.PluginSigner")
+@patch("karcytics_sdk.cli.commands.security.PluginSigner")
 def test_security_sign(mock_signer_class):
     mock_signer = mock_signer_class.return_value
     args = DummyArgs(plugin_dir="/test")
@@ -48,10 +48,10 @@ def test_migrate_missing(tmp_path):
     assert migrate.migrate_plugin(args) is False
 
 
-@patch("biopro_sdk.cli.main.sys.exit")
+@patch("karcytics_sdk.cli.main.sys.exit")
 def test_main_cli(mock_exit):
-    from biopro_sdk.cli.main import main
+    from karcytics_sdk.cli.main import main
 
-    with patch("sys.argv", ["biopro-sdk", "doctor", "/path"]):
+    with patch("sys.argv", ["karcytics-sdk", "doctor", "/path"]):
         main()
         mock_exit.assert_called_with(0)

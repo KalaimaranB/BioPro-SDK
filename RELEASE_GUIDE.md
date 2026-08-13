@@ -1,28 +1,28 @@
-# 📦 BioPro SDK Release and PyPI Publication Guide
+# 📦 Karcytics SDK Release and PyPI Publication Guide
 
-This guide provides step-by-step instructions on how to publish the **BioPro SDK** (`biopro-sdk`) to PyPI, set up automated CI/CD releases, and push the local codebase to your newly created GitHub repository.
+This guide provides step-by-step instructions on how to publish the **Karcytics SDK** (`karcytics-sdk`) to PyPI, set up automated CI/CD releases, and push the local codebase to your newly created GitHub repository.
 
 ---
 
 ## 🚀 Step 1: Push Code to GitHub
 
-Your repository at `https://github.com/KalaimaranB/BioPro-SDK` is currently empty. Follow these steps to push your local SDK files:
+Your repository at `https://github.com/KalaimaranB/Karcytics-SDK` is currently empty. Follow these steps to push your local SDK files:
 
 1. **Open your terminal** and navigate to the SDK directory:
    ```bash
-   cd "/Users/kalaimaranbalasothy/GitHub Projects/BioPro-SDK"
+   cd "/Users/kalaimaranbalasothy/GitHub Projects/Karcytics-SDK"
    ```
 
 2. **Initialize Git** (if not already done) and set the remote:
    ```bash
    git init
-   git remote add origin https://github.com/KalaimaranB/BioPro-SDK.git
+   git remote add origin https://github.com/KalaimaranB/Karcytics-SDK.git
    ```
 
 3. **Stage and commit all files**:
    ```bash
    git add .
-   git commit -m "Initial commit: decouping BioPro-SDK from Core application"
+   git commit -m "Initial commit: decouping Karcytics-SDK from Core application"
    ```
 
 4. **Push to GitHub**:
@@ -43,7 +43,7 @@ The SDK includes a `.github/workflows/publish.yml` file pre-configured for **Tru
 3. Under **Add a new publisher**, select **GitHub**.
 4. Enter the following details:
    - **Owner:** `KalaimaranB`
-   - **Repository:** `BioPro-SDK`
+   - **Repository:** `Karcytics-SDK`
    - **Workflow name:** `publish.yml`
    - **Environment:** `release` (or leave empty if you want it to trigger on any tag)
 5. Click **Add Publisher**.
@@ -88,7 +88,7 @@ If you prefer to build and upload the package manually from your local machine, 
    ```bash
    python3 -m build
    ```
-   This will generate a `dist/` directory containing files like `biopro_sdk-1.0.0-py3-none-any.whl` and `biopro-sdk-1.0.0.tar.gz`.
+   This will generate a `dist/` directory containing files like `karcytics_sdk-1.0.0-py3-none-any.whl` and `karcytics-sdk-1.0.0.tar.gz`.
 
 3. **Verify the build package contents**:
    ```bash
@@ -105,12 +105,12 @@ If you prefer to build and upload the package manually from your local machine, 
 
 ## 📝 SDK Folder Structure Summary
 
-- **`src/biopro_sdk/`**: The core codebase containing:
+- **`src/karcytics_sdk/`**: The core codebase containing:
   - `core/`: Verification trust managers, local override registries, and interface models.
   - `ui/`: PyQt6 reusable visual components and wizard form guides.
   - `utils/`: High performance IO helpers.
   - `contrib/`: Heavy deep-learning and image processing wrappers.
-  - `sdk_cli.py`: The `biopro-sdk` command line engine.
+  - `sdk_cli.py`: The `karcytics-sdk` command line engine.
 - **`pyproject.toml`**: Package metadata, entrypoints, and standard PyPI dependencies.
 - **`.gitignore`**: Strict exclusion profiles to prevent local keys or runtime noise from entering the repo.
 - **`README.md`**: Standard developer installation and basic usage commands.
