@@ -380,10 +380,10 @@ with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             *Auto-generated changes below:*
           generate_release_notes: true
           files: "${{ needs.check_version.outputs.plugin_id }}_v${{ needs.check_version.outputs.version }}.zip"
-      - name: Checkout BioPro-Distribution
+      - name: Checkout Karcytics-Distribution
         uses: actions/checkout@v4
         with:
-          repository: KalaimaranB/BioPro-Distribution
+          repository: KalaimaranB/Karcytics-Distribution
           token: ${{ secrets.DIST_PAT }}
           path: dist-repo
       - name: Update registry.json

@@ -59,7 +59,7 @@ Runs automatically when code is pushed to `main` with a bumped version in `pypro
 - Tags the repository and executes `karcytics-sdk evaluate` and `karcytics-sdk project-sign`.
 - Bundles the plugin into a production-ready `.zip` archive (excluding tests, venvs, and Git history).
 - Creates a GitHub Release with auto-generated release notes.
-- Automatically opens a Pull Request on the central `BioPro-Distribution` repository to update the `registry.json` ledger.
+- Automatically opens a Pull Request on the central `Karcytics-Distribution` repository to update the `registry.json` ledger.
 
 
 ---
