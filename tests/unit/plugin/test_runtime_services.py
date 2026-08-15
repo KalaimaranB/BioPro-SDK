@@ -128,14 +128,82 @@ class TestRemoteEventBus:
 
         assert sent == [("custom_topic", {"a": 1})]
 
-    def test_subscribe_and_unsubscribe_are_safe_noops(self):
-        """No cross-process push channel for arbitrary Hub-originated events
-        exists yet; documented as a real, permanent no-op rather than an
-        error, since nothing in an isolated plugin can rely on receiving one.
+    def test_subscribe_without_core_services_configured_still_registers_locally(self, monkeypatch):
+        """No KARCYTICS_CORE_SERVICES_PORT/TOKEN (e.g. a bare unit test, or a
+        worker that hasn't received them) must degrade to "local bookkeeping
+        only", not raise — mirrors every other CoreServices call site's
+        graceful-unreachable handling.
+        """
+        monkeypatch.delenv("KARCYTICS_CORE_SERVICES_PORT", raising=False)
+        monkeypatch.delenv("KARCYTICS_CORE_SERVICES_TOKEN", raising=False)
+        bus = RemoteEventBus()
+        received = []
+
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, received.append)
+        bus.dispatch_event("ACADEMY_STEP_CHANGED", {"step": "one"})
+
+        assert received == [{"step": "one"}]
+
+    def test_subscribe_calls_hub_event_subscribe_once_per_topic(self, monkeypatch):
+        """A second local subscriber for the same topic must not re-register
+        with the Hub — the forwarded event already reaches both.
+        """
+        monkeypatch.setenv("KARCYTICS_PLUGIN_ID", "flow_cytometry")
+        bus = RemoteEventBus()
+        calls = []
+        bus._client = MagicMock(call=lambda method, **kwargs: calls.append((method, kwargs)))
+
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, lambda *a: None)
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, lambda *a: None)
+
+        assert calls == [("event.subscribe", {"topic": "ACADEMY_STEP_CHANGED", "plugin_id": "flow_cytometry"})]
+
+    def test_unsubscribe_calls_hub_only_once_the_last_local_subscriber_leaves(self, monkeypatch):
+        monkeypatch.setenv("KARCYTICS_PLUGIN_ID", "flow_cytometry")
+        bus = RemoteEventBus()
+        calls = []
+        bus._client = MagicMock(call=lambda method, **kwargs: calls.append((method, kwargs)))
+        cb_a, cb_b = (lambda *a: None), (lambda *a: None)
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, cb_a)
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, cb_b)
+        calls.clear()
+
+        bus.unsubscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, cb_a)
+        assert calls == []  # cb_b is still subscribed — the Hub still cares.
+
+        bus.unsubscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, cb_b)
+        assert calls == [("event.unsubscribe", {"topic": "ACADEMY_STEP_CHANGED", "plugin_id": "flow_cytometry"})]
+
+    def test_dispatch_event_only_invokes_subscribers_of_the_matching_topic(self):
+        bus = RemoteEventBus()
+        step_calls, other_calls = [], []
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, step_calls.append)
+        bus.subscribe(KarcyticsEvent.MODULE_OPENED, other_calls.append)
+
+        bus.dispatch_event("ACADEMY_STEP_CHANGED", {"step": "one"})
+
+        assert step_calls == [{"step": "one"}]
+        assert other_calls == []
+
+    def test_dispatch_event_for_an_unsubscribed_topic_is_a_safe_noop(self):
+        RemoteEventBus().dispatch_event("NEVER_SUBSCRIBED", {"x": 1})
+
+    def test_dispatch_event_survives_a_raising_subscriber(self):
+        """One bad callback must not stop the rest, or crash the worker's
+        request dispatcher this ultimately runs under.
         """
         bus = RemoteEventBus()
-        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, lambda *a: None)
-        bus.unsubscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, lambda *a: None)
+        results = []
+
+        def _raiser(_payload):
+            raise ValueError("boom")
+
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, _raiser)
+        bus.subscribe(KarcyticsEvent.ACADEMY_STEP_CHANGED, results.append)
+
+        bus.dispatch_event("ACADEMY_STEP_CHANGED", {"step": "one"})
+
+        assert results == [{"step": "one"}]
 
     def test_module_level_event_bus_is_a_remote_event_bus(self):
         assert isinstance(event_bus, RemoteEventBus)

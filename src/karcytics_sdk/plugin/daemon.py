@@ -491,6 +491,16 @@ class PluginUIDaemon(QObject):
         self.plugin_id = plugin_id
         self.daemon_script_path = Path(daemon_script_path) if daemon_script_path else None
         self._logger = get_logger(__name__, plugin_id)
+        # Set by a caller (e.g. karcytics/ui/windows/workspace/plugin_loader.py's
+        # _instantiate_isolated_overlay, or __main__.py's isolated smoke test)
+        # before the first ensure_started()/call(), to stage
+        # KARCYTICS_PENDING_WORKFLOW=1 in _start_process's env — declared
+        # here (rather than left as an attribute that only springs into
+        # existence via external assignment) purely so every reader,
+        # including a type checker, can see it's a real, always-present
+        # attribute, not defer to _start_process's own `getattr(self,
+        # "pending_workflow", False)` to learn that.
+        self.pending_workflow: bool = False
         self._proc: subprocess.Popen | None = None
         self._start_lock = threading.Lock()
         self._next_request_id = itertools.count(1)
@@ -532,6 +542,18 @@ class PluginUIDaemon(QObject):
             elif daemon_script_path is not None and cls._instances[plugin_id].daemon_script_path is None:
                 cls._instances[plugin_id].daemon_script_path = Path(daemon_script_path)
             return cls._instances[plugin_id]
+
+    @classmethod
+    def get_running_instance(cls, plugin_id: str) -> PluginUIDaemon | None:
+        """Return the already-registered instance for `plugin_id`, or `None`.
+
+        Unlike `get_instance()`, never creates one — for callers (the Hub's
+        event-dispatch fan-out, see `core_services_bootstrap.py`) that only
+        want to reach a module already running, without registering a
+        phantom entry for one that isn't.
+        """
+        with cls._registry_lock:
+            return cls._instances.get(plugin_id)
 
     @classmethod
     def start_instance(
@@ -635,7 +657,7 @@ class PluginUIDaemon(QObject):
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
         env["KARCYTICS_PLUGIN_ID"] = self.plugin_id
-        if getattr(self, "pending_workflow", False):
+        if self.pending_workflow:
             env["KARCYTICS_PENDING_WORKFLOW"] = "1"
         if self._core_services_port is not None:
             env["KARCYTICS_CORE_SERVICES_PORT"] = str(self._core_services_port)

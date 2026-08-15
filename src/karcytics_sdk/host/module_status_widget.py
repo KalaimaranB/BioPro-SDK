@@ -1,11 +1,10 @@
 """Hub-owned status widget for an isolated module's slot in the workspace.
 
-An isolated module's real UI is a standalone window in its own process (see
-the Interpreter Isolation Plan's "standalone window" decision) — the Hub's
-own workspace area never hosts plugin content for one. What it hosts instead
-is this: a small widget that mirrors the daemon's lifecycle so the user
-always has something to look at and act on in `main_module_layout`, driven
-entirely by `PluginUIDaemon` signals, with no plugin-specific code.
+An isolated module's real UI is a standalone window in its own process — the
+Hub's own workspace area never hosts plugin content for one. What it hosts
+instead is this: a small widget that mirrors the daemon's lifecycle so the
+user always has something to look at and act on in `main_module_layout`,
+driven entirely by `PluginUIDaemon` signals, with no plugin-specific code.
 
 State machine::
 

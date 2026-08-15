@@ -46,9 +46,11 @@ from PyQt6.QtWidgets import QWidget
 __version__ = "1.0.0"
 __plugin_id__ = "my_plugin"
 
+
 def get_panel_class() -> type[QWidget]:
     """Return the main QWidget class for Karcytics integration."""
     from .ui import MyFirstPanel
+
     return MyFirstPanel
 ```
 
@@ -63,9 +65,11 @@ In Karcytics, all dynamic UI choices (like sliders, spinners, checkboxes, and in
 from dataclasses import dataclass
 from karcytics_sdk.plugin import PluginState
 
+
 @dataclass
 class NormalizationState(PluginState):
     """Scientific configuration variables for the normalization panel."""
+
     threshold: float = 0.5
     filter_type: str = "Gaussian"
     user_notes: str = ""
@@ -82,6 +86,7 @@ from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit
 from karcytics_sdk.plugin import PluginBase
 from karcytics_sdk.plugin.components import PrimaryButton
+
 
 class MyFirstPanel(PluginBase):
     def __init__(self, parent=None):
@@ -122,6 +127,7 @@ To do this:
 from typing import Any
 from karcytics_sdk.plugin import AnalysisBase, PluginState
 
+
 class NormalizationEngine(AnalysisBase):
     def __init__(self):
         super().__init__(plugin_id="my_plugin")
@@ -159,6 +165,7 @@ To save user preferences (like paths, recent files, or hardware selections) betw
 
 ```python
 from karcytics_sdk.plugin import PluginConfig
+
 
 class MyPreferences:
     def __init__(self):

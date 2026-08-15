@@ -100,6 +100,7 @@ Open `src/ui.py` and import the Karcytics SDK components:
 ```python
 from karcytics_sdk.plugin import PluginBase, PrimaryButton, SecondaryButton, SectionHeader
 
+
 class MyPluginUI(PluginBase):
     def __init__(self, parent=None):
         super().__init__(parent)

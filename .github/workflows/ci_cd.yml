@@ -37,7 +37,7 @@ jobs:
         run: |
           uv venv
           uv pip install -e .
-          uv pip install pytest pytest-cov pytest-qt ruff mypy types-requests
+          uv pip install pytest pytest-cov pytest-qt pytest-timeout ruff mypy types-requests
 
       - name: Lint and Format Audit (Ruff)
         run: |

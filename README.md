@@ -59,6 +59,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from karcytics_sdk.core.interfaces import KarcyticsPlugin
 from karcytics_sdk.ui import PrimaryButton
 
+
 class MyPluginClass(KarcyticsPlugin):
     """A professional-grade Karcytics plugin."""
 

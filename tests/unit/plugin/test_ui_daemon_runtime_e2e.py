@@ -575,4 +575,117 @@ def test_worker_never_sends_ready_when_the_hub_theme_cannot_be_confirmed(minimal
     with pytest.raises(RuntimeError, match="cannot confirm the Hub's real theme"):
         daemon.ensure_started(timeout=5.0)
 
+
+@pytest.fixture
+def data_ready_worker_script(tmp_path):
+    """A panel with a real one-shot `data_ready` signal, driven by
+    `load_workflow()` the same way a real analysis panel would be — proves
+    `run()`'s `panel_data_ready` forwarding actually observes the panel's
+    own signal end to end, not just that the connection was made.
+    """
+    script_path = tmp_path / "data_ready_worker.py"
+    code = """
+from PyQt6.QtCore import QTimer, pyqtSignal
+from PyQt6.QtWidgets import QLabel
+from karcytics_sdk.plugin.ui_daemon_runtime import run
+
+class Panel(QLabel):
+    data_ready = pyqtSignal()
+
+    def load_workflow(self, payload, filename=None, metadata=None):
+        self.setText(f"loaded {filename}")
+        QTimer.singleShot(0, self.data_ready.emit)
+
+def build_panel():
+    return Panel("waiting for data")
+
+if __name__ == "__main__":
+    run(build_panel, window_title="Data Ready Test Module")
+"""
+    script_path.write_text(code, encoding="utf-8")
+    return script_path
+
+
+def test_inject_workflow_then_panel_data_ready_event(data_ready_worker_script):
+    """The Hub-observable half of the fix this test guards: a caller driving
+    an isolated panel purely over IPC (no direct object reference) needs a
+    positive "the data actually finished loading" signal distinct from
+    `inject_workflow`'s own `{"status": "ok"}`, which only confirms the
+    request was accepted — not that the one-tick-later load it schedules
+    ever completed.
+    """
+    plugin_id = "test_runtime_data_ready"
+    daemon = PluginUIDaemon.start_instance(plugin_id, daemon_script_path=data_ready_worker_script)
+
+    received = []
+    daemon.event_received.connect(lambda topic, payload: received.append((topic, payload)))
+
+    result = daemon.call("inject_workflow", {"payload": {}, "filename": "sample.fcs"})
+    assert result.get("status") == "ok"
+
+    deadline = time.monotonic() + 5.0
+    topics = []
+    while time.monotonic() < deadline and "panel_data_ready" not in topics:
+        from PyQt6.QtWidgets import QApplication
+
+        QApplication.processEvents()
+        time.sleep(0.02)
+        topics = [t for t, _ in received]
+
+    assert "panel_data_ready" in topics
+
+    PluginUIDaemon.stop_instance(plugin_id)
+
+
+@pytest.fixture
+def failing_load_worker_script(tmp_path):
+    """A panel whose `load_workflow` always raises — proves a deferred load
+    failure (the part `inject_workflow`'s immediate `{"status": "ok"}`
+    response can never cover, since the actual call happens a tick later)
+    reaches the Hub as a `workflow_injection_failed` event instead of
+    vanishing into this process's own stderr.
+    """
+    script_path = tmp_path / "failing_load_worker.py"
+    code = """
+from PyQt6.QtWidgets import QLabel
+from karcytics_sdk.plugin.ui_daemon_runtime import run
+
+class Panel(QLabel):
+    def load_workflow(self, payload, filename=None, metadata=None):
+        raise ValueError("simulated load failure")
+
+def build_panel():
+    return Panel("about to fail")
+
+if __name__ == "__main__":
+    run(build_panel, window_title="Failing Load Test Module")
+"""
+    script_path.write_text(code, encoding="utf-8")
+    return script_path
+
+
+def test_inject_workflow_failure_sends_workflow_injection_failed_event(failing_load_worker_script):
+    plugin_id = "test_runtime_injection_failed"
+    daemon = PluginUIDaemon.start_instance(plugin_id, daemon_script_path=failing_load_worker_script)
+
+    received = []
+    daemon.event_received.connect(lambda topic, payload: received.append((topic, payload)))
+
+    result = daemon.call("inject_workflow", {"payload": {}, "filename": "sample.fcs"})
+    assert result.get("status") == "ok"
+
+    deadline = time.monotonic() + 5.0
+    topics = {}
+    while time.monotonic() < deadline and "workflow_injection_failed" not in topics:
+        from PyQt6.QtWidgets import QApplication
+
+        QApplication.processEvents()
+        time.sleep(0.02)
+        topics = dict(received)
+
+    assert "workflow_injection_failed" in topics
+    assert "simulated load failure" in topics["workflow_injection_failed"]["error"]
+
+    PluginUIDaemon.stop_instance(plugin_id)
+
     PluginUIDaemon.stop_instance(plugin_id)

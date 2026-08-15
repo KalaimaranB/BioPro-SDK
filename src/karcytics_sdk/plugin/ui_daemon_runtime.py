@@ -389,105 +389,22 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
         _build_help_menu(window, client, logger)
 
 
-_COURSE_COMPLETE_PROGRESS = 100.0
-
-
-def _academy_next_step(tutorial_manager: Any, panel: QWidget) -> None:
-    """The Help menu Academy overlay's "Next →" handler.
-
-    Mirrors the Hub's own `WorkspaceWindow._on_tutorial_next()`: a
-    `BranchingStep` picks its first option as the target (or completes the
-    course on the `"__complete__"` sentinel); an interactive
-    `VerificationStep`'s "Check ✓" button runs its validator immediately
-    instead of waiting for `AcademyStepDriver`'s own poll tick; anything else
-    just advances along `next_step_id`.
-    """
-    from .tutorial_models import BranchingStep, VerificationStep
-
-    step = tutorial_manager.current_step
-    if step and isinstance(step, BranchingStep):
-        first_target = next(iter(step.options.values()), None)
-        if first_target == "__complete__":
-            tutorial_manager.complete_course()
-            tutorial_manager.current_step = None
-            tutorial_manager._emit_step_changed()
-        elif first_target:
-            tutorial_manager.next_step(first_target)
-        return
-
-    if step and isinstance(step, VerificationStep) and step.allow_interaction:
-        app_state = getattr(panel, "state", None)
-        if step.validator and step.validator.validate(app_state):
-            tutorial_manager.next_step(step.on_success_step_id)
-        elif step.on_fail_step_id:
-            tutorial_manager.next_step(step.on_fail_step_id)
-        return
-
-    tutorial_manager.next_step()
-
-
-def _build_academy_overlay(window: QMainWindow, panel: QWidget) -> Any:
-    """Builds (once) the `TutorialOverlay` + `AcademyStepDriver` pair for
-    this window's Help > Academy action, caching both on `window`.
-    """
-    from .academy_driver import AcademyStepDriver
-    from .runtime_services import academy_event_bus, tutorial_manager
-    from .tutorial_overlay import TutorialOverlay
-
-    overlay = TutorialOverlay(tutorial_manager, academy_event_bus, panel)
-
-    def _on_skip() -> None:
-        tutorial_manager.active_course = None
-        tutorial_manager.current_step = None
-        overlay.hide()
-
-    overlay.btn_next.clicked.connect(lambda: _academy_next_step(tutorial_manager, panel))
-    overlay.skip_requested.connect(_on_skip)
-    window._academy_overlay = overlay  # type: ignore[attr-defined]
-    window._academy_driver = AcademyStepDriver(  # type: ignore[attr-defined]
-        tutorial_manager, overlay, panel, state_provider=lambda: getattr(panel, "state", None)
-    )
-    return overlay
-
-
-def _open_academy(window: QMainWindow, panel: QWidget) -> None:
-    from .dialogs import show_info
-    from .runtime_services import tutorial_manager
-
-    plugin_id = os.environ.get("KARCYTICS_PLUGIN_ID", "unknown")
-    courses = tutorial_manager.get_courses_for_module(plugin_id)
-    if not courses:
-        show_info(window, "Karcytics Academy", "No courses are available for this module yet.")
-        return
-
-    overlay = getattr(window, "_academy_overlay", None) or _build_academy_overlay(window, panel)
-
-    # Jump into the first course that isn't already complete; once every
-    # course is done, reopening just reviews the first one again.
-    target = next(
-        (c for c in courses if tutorial_manager.get_progress(c.id) < _COURSE_COMPLETE_PROGRESS),
-        courses[0],
-    )
-    tutorial_manager.start_course_confirmed(target.id)
-    overlay.setGeometry(panel.rect())
-    overlay.show()
-    overlay.raise_()
-
-
 def _wire_academy_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
     """Connects the Help menu's "🎓 Academy" action, built earlier by
     `_build_help_menu()`, once `panel` actually exists.
 
-    Builds a `TutorialOverlay` + `AcademyStepDriver` lazily, on first click,
-    over this plugin's own `tutorial_manager`/`academy_event_bus` (see
-    `runtime_services.py`) — the real, local `AcademyManager` every course
-    this plugin registered via `register_courses()` already lives in.
+    Delegates to `academy_driver.open_academy()` — the same shared entry
+    point a plugin's own in-panel triggers (e.g. `components.AcademyButton`)
+    use, so the Help menu and any toolbar button stay in sync over one
+    `TutorialOverlay`/`AcademyStepDriver` pair cached on this window.
     """
     action = getattr(window, "_academy_menu_action", None)
     if action is None:
         return
 
-    action.triggered.connect(lambda: _open_academy(window, panel))
+    from .academy_driver import open_academy
+
+    action.triggered.connect(lambda: open_academy(window, panel))
     logger.debug("Academy menu wired.", extra={"log_event": "academy_menu_wired"})
 
 
@@ -530,12 +447,11 @@ def _confirm_hub_theme_or_exit(logger: Any, plugin_id: str) -> None:
     to `theme_fallback.DynamicColors` before any widget is built.
 
     Deliberately synchronous and gating, not best-effort: a theme mismatch
-    between this window and the Hub is a real regression (see the
-    Interpreter Isolation Plan bug tracker, "colors don't match the core"),
-    not cosmetic, and `theme_fallback`'s DARK/LIGHT palettes existing at all
-    means a broken confirmation would otherwise fail *silently* — the window
-    would still render, just wrong. Refusing to build one at all keeps that
-    failure loud instead.
+    between this window and the Hub is a real regression, not cosmetic, and
+    `theme_fallback`'s DARK/LIGHT palettes existing at all means a broken
+    confirmation would otherwise fail *silently* — the window would still
+    render, just wrong. Refusing to build one at all keeps that failure loud
+    instead.
     """
     port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
     token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
@@ -673,6 +589,17 @@ def run(  # noqa: C901, PLR0913, PLR0915
     _confirm_hub_theme_or_exit(logger, plugin_id)
     app = QApplication.instance() or QApplication(sys.argv)
 
+    # `components.py` tries to do this at import time, but that import
+    # (via this module's own `from karcytics_sdk.plugin import
+    # run_ui_daemon`) happens before `QApplication` exists for an isolated
+    # plugin, so it silently no-ops there — see `apply_global_sdk_styles()`'s
+    # docstring. Native, app-level-only-stylable popups (QToolTip, a plain
+    # QComboBox's dropdown) would otherwise render unstyled for the whole
+    # session unless the user happened to switch themes afterward.
+    from .components import apply_global_sdk_styles
+
+    apply_global_sdk_styles()
+
     def _notify_window_closed() -> None:
         logger.info("Native window close.", extra={"log_event": "window_closed"})
         send_event("window_closed", {})
@@ -747,12 +674,30 @@ def run(  # noqa: C901, PLR0913, PLR0915
 
     dispatcher.register("focus", _handle_focus)
 
-    def _handle_inject_workflow(kwargs: dict[str, Any]) -> dict[str, Any]:
-        payload = kwargs.get("payload")
-        filename = kwargs.get("filename")
-        metadata = kwargs.get("metadata")
+    def _invoke_load_workflow(payload: Any, filename: Any, metadata: Any) -> None:
+        import inspect
 
-        def _do_load() -> None:
+        sig = inspect.signature(panel.load_workflow)
+        call_kwargs = {}
+        if "filename" in sig.parameters:
+            call_kwargs["filename"] = filename
+        if "metadata" in sig.parameters:
+            call_kwargs["metadata"] = metadata
+        panel.load_workflow(payload, **call_kwargs)
+
+    def _do_workflow_load(payload: Any, filename: Any, metadata: Any) -> None:
+        # This runs on the next event-loop tick (QTimer.singleShot(0, ...)
+        # below), well after this handler has already written its
+        # {"status": "ok"} response — so a raise here has no request
+        # in flight to carry an error back to the Hub. Qt's default
+        # excepthook would otherwise just print it to this process's
+        # stderr, which the Hub only surfaces as an opaque
+        # `worker_stderr`-tagged log line (see docs/internal/24, "What
+        # actually crosses the process boundary"). send_event() gives
+        # the Hub a structured, attributable signal instead — the same
+        # reasoning that makes `panel_data_ready` below worth forwarding
+        # rather than leaving success silent too.
+        try:
             if os.environ.get("KARCYTICS_PENDING_WORKFLOW") == "1":
                 # Emulate Phase 2 workflow injection by staging the payload
                 panel._deferred_workflow_payload = payload
@@ -767,23 +712,45 @@ def run(  # noqa: C901, PLR0913, PLR0915
                     panel.load_workflow(payload)
             # Dynamic load if the module is already running
             elif hasattr(panel, "load_workflow"):
-                import inspect
+                _invoke_load_workflow(payload, filename, metadata)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "inject_workflow's deferred load raised.",
+                extra={"log_event": "workflow_injection_failed"},
+            )
+            send_event("workflow_injection_failed", {"error": str(exc)})
 
-                sig = inspect.signature(panel.load_workflow)
-                call_kwargs = {}
-                if "filename" in sig.parameters:
-                    call_kwargs["filename"] = filename
-                if "metadata" in sig.parameters:
-                    call_kwargs["metadata"] = metadata
-                panel.load_workflow(payload, **call_kwargs)
+    def _handle_inject_workflow(kwargs: dict[str, Any]) -> dict[str, Any]:
+        payload = kwargs.get("payload")
+        filename = kwargs.get("filename")
+        metadata = kwargs.get("metadata")
 
         from PyQt6.QtCore import QTimer
 
-        QTimer.singleShot(0, _do_load)
+        QTimer.singleShot(0, lambda: _do_workflow_load(payload, filename, metadata))
 
         return {"status": "ok"}
 
     dispatcher.register("inject_workflow", _handle_inject_workflow)
+
+    def _handle_dispatch_event(kwargs: dict[str, Any]) -> dict[str, Any]:
+        """The Hub->worker half of event bridging (see `RemoteEventBus.subscribe`
+        in `runtime_services.py` for the worker->Hub subscription half, and
+        `core_services_bootstrap.py`'s `event.subscribe` for the Hub-side
+        fan-out this is on the receiving end of).
+
+        The Hub only ever calls this for a topic this process itself
+        subscribed to — `RemoteEventBus` is where the actual callbacks and
+        the "was this ever subscribed" bookkeeping live, so this handler is
+        just the wire-to-bus hop.
+        """
+        from .runtime_services import event_bus
+
+        topic = kwargs.get("topic", "")
+        event_bus.dispatch_event(topic, kwargs.get("payload"))
+        return {"status": "ok"}
+
+    dispatcher.register("dispatch_event", _handle_dispatch_event)
 
     for method, handler in (extra_handlers or {}).items():
         dispatcher.register(method, handler)
@@ -845,9 +812,9 @@ def run(  # noqa: C901, PLR0913, PLR0915
     # frontmost app on macOS for a bare interpreter process spawned via
     # subprocess (no .app bundle/Info.plist) — and an app that never
     # activates can end up with its native menu bar never synced into the
-    # global menu bar at all (see the Interpreter Isolation Plan's bug
-    # tracker, "menu options ... not available in the plugins"). Forcing
-    # activation here is a no-op on platforms where .show() already did it.
+    # global menu bar at all ("menu options ... not available in the
+    # plugins"). Forcing activation here is a no-op on platforms where
+    # .show() already did it.
     window.raise_()
     window.activateWindow()
     geometry = window.geometry()
@@ -863,6 +830,21 @@ def run(  # noqa: C901, PLR0913, PLR0915
     # startup is gated behind it, and the loading screen now genuinely masks
     # Phase 1's construction time too instead of only Phase 2's.
     panel = panel_factory()
+
+    if hasattr(panel, "data_ready"):
+        # Forwards the panel's own one-shot "initial (or injected) data
+        # finished loading" signal across the process boundary — connected
+        # here, immediately after the panel exists, so it can never miss an
+        # emission regardless of whether that happens via the panel's own
+        # begin_async_init() (started automatically below unless
+        # KARCYTICS_PENDING_WORKFLOW gates it) or later, dynamically, via an
+        # inject_workflow request. Without this, a caller driving the panel
+        # purely over IPC (this runtime has no other way to observe it) has
+        # no way to tell "still loading" from "done" apart from waiting a
+        # fixed, guessed amount of time — see docs/internal/24, `event`
+        # table, `panel_data_ready`.
+        panel.data_ready.connect(lambda: send_event("panel_data_ready", {}))
+
     _wire_academy_menu(window, panel, logger)
     if configure_menus is not None:
         try:

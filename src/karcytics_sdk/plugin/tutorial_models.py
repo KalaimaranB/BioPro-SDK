@@ -122,6 +122,38 @@ class WaitForEventStep(BaseStep):
     The Next button is hidden; the overlay shows a waiting indicator.
     ``event_name`` must match a ``KarcyticsEvent`` enum member name exactly
     (e.g. ``"PROJECT_LOADED"``, ``"FILE_IMPORTED"``).
+
+    Which "event bus" that is depends on where the course runs, and for an
+    isolated plugin it is **not** the Hub's real event bus:
+
+    - In the Hub's own process, ``AcademyManager`` is constructed with
+      ``_HubAcademyEventBus``, which subscribes directly against the Hub's
+      live ``KarcyticsEvent`` bus — a genuine Hub-only event (say,
+      ``PROJECT_LOADED`` firing because the user opened a different
+      project) reaches this step correctly, no extra work needed.
+    - In an isolated plugin's own process, ``AcademyManager`` is
+      constructed with ``_LocalAcademyEventBus``
+      (`karcytics_sdk/plugin/runtime_services.py`), which subscribes
+      against that process's own local ``CentralEventBus`` — purely
+      in-process pub/sub, unrelated to the Hub. A genuine Hub-only event
+      never reaches it. `docs/internal/28_Event_Bridging.md`'s
+      ``RemoteEventBus``/``event.subscribe``/``dispatch_event`` channel
+      *can* carry that event across the process boundary, but nothing
+      wires it to this step automatically — a plugin author has to bridge
+      the two explicitly, e.g.:
+
+      ```python
+      runtime_services.event_bus.subscribe(
+          KarcyticsEvent.PROJECT_LOADED,
+          lambda payload: CentralEventBus.publish("PROJECT_LOADED", payload),
+      )
+      ```
+
+      once, before starting a course that uses this step for that topic.
+      See `docs/internal/27_Academy_Engine.md`, "Writing a course", for the
+      full picture. If your course only waits on something the plugin's
+      own code already publishes locally, none of this applies — the gap
+      only bites for a genuinely Hub-sourced event.
     """
 
     event_name: str = ""  # KarcyticsEvent enum member name to wait for

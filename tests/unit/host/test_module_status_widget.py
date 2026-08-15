@@ -241,8 +241,8 @@ def test_push_theme_is_a_noop_before_running(qapp, slow_worker_script):  # noqa:
 # GalacticLoader overlay until `panel_ready` (and `data_ready`, if present)
 # fire, instead of an immediate crossfade. ModuleStatusWidget speaking this
 # same contract is what lets the Hub reuse that existing choreography for
-# isolated modules verbatim — see the Interpreter Isolation Plan's Phase 2 —
-# rather than forking a parallel isolated-only code path in plugin_loader.py.
+# isolated modules verbatim, rather than forking a parallel isolated-only
+# code path in plugin_loader.py.
 
 
 def test_panel_ready_fires_for_a_listener_connected_after_construction(qapp, fast_worker_script):  # noqa: ARG001

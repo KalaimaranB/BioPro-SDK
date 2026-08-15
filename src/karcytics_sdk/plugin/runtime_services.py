@@ -159,12 +159,34 @@ class RemoteEventBus:
     """A plugin process's connection to the Hub's event fabric.
 
     `emit()`/`publish()` forward to the Hub as an "event" frame over the
-    existing `PluginUIDaemon` transport. `subscribe()`/`unsubscribe()` are
-    real, permanent no-ops, not a placeholder for something coming later:
-    there is no channel today for the Hub to push arbitrary named events
-    into an isolated plugin process, and nothing here should pretend
-    otherwise.
+    existing `PluginUIDaemon` transport — always worked, since a worker
+    already pushes events unprompted (`window_closed`, theme acks, ...) over
+    that same channel.
+
+    `subscribe()`/`unsubscribe()` are real now too, built on the Hub->worker
+    channel Phase 2 added: this process's own `client.call("event.subscribe",
+    ...)` registers interest with the Hub's `core_services_bootstrap.py`,
+    which then forwards a matching `KarcyticsEvent` by calling this worker's
+    `dispatch_event` request (see `ui_daemon_runtime.py`). Only topics
+    something here actually subscribed to are ever forwarded — the Hub never
+    blind-broadcasts. `WaitForEventStep` is the reason this exists: it's the
+    one `AcademyManager` step type that needs an event only the Hub can see.
     """
+
+    def __init__(self) -> None:
+        self._subscribers: dict[str, list[Any]] = {}
+        self._client: Any | None = None
+
+    def _get_client(self) -> Any | None:
+        if self._client is None:
+            port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
+            token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
+            if not port or not token:
+                return None
+            from karcytics_sdk.host.core_services import CoreServicesClient
+
+            self._client = CoreServicesClient(int(port), token=token)
+        return self._client
 
     def emit(self, event_type: Any, *args: Any, **kwargs: Any) -> None:
         topic = getattr(event_type, "name", None) or str(event_type)
@@ -174,11 +196,63 @@ class RemoteEventBus:
     def publish(self, topic: str, data: Any = None) -> None:
         send_event(topic, data)
 
-    def subscribe(self, event_type: Any, callback: Any) -> None:  # noqa: ARG002
-        pass
+    def subscribe(self, event_type: Any, callback: Any) -> None:
+        topic = getattr(event_type, "name", None) or str(event_type)
+        subs = self._subscribers.setdefault(topic, [])
+        is_first_subscriber = not subs
+        if callback not in subs:
+            subs.append(callback)
 
-    def unsubscribe(self, event_type: Any, callback: Any) -> None:  # noqa: ARG002
-        pass
+        # Only the *first* local subscriber for this topic needs to tell the
+        # Hub anything — every subsequent one is served from the same
+        # forwarded event, not a second registration.
+        if not is_first_subscriber:
+            return
+        client = self._get_client()
+        if client is None:
+            return
+        try:
+            client.call("event.subscribe", topic=topic, plugin_id=os.environ.get("KARCYTICS_PLUGIN_ID", "unknown"))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to subscribe to Hub event topic.",
+                extra={"log_event": "event_subscribe_failed", "topic": topic, "error": str(exc)},
+            )
+
+    def unsubscribe(self, event_type: Any, callback: Any) -> None:
+        topic = getattr(event_type, "name", None) or str(event_type)
+        subs = self._subscribers.get(topic)
+        if not subs or callback not in subs:
+            return
+        subs.remove(callback)
+        if subs:
+            return
+
+        del self._subscribers[topic]
+        client = self._get_client()
+        if client is None:
+            return
+        try:
+            client.call("event.unsubscribe", topic=topic, plugin_id=os.environ.get("KARCYTICS_PLUGIN_ID", "unknown"))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to unsubscribe from Hub event topic.",
+                extra={"log_event": "event_unsubscribe_failed", "topic": topic, "error": str(exc)},
+            )
+
+    def dispatch_event(self, topic: str, payload: Any) -> None:
+        """Invoke every local subscriber for `topic` — called by
+        `ui_daemon_runtime.py`'s `dispatch_event` request handler when the
+        Hub forwards a matching event, never by this process itself.
+        """
+        for callback in list(self._subscribers.get(topic, ())):
+            try:
+                callback(payload)
+            except Exception:  # noqa: BLE001
+                logger.exception(
+                    "Event subscriber raised.",
+                    extra={"log_event": "event_dispatch_handler_failed", "topic": topic},
+                )
 
 
 class DiagnosticsForwarder:

@@ -19,6 +19,42 @@ import weakref
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+_SHORT_HEX_LEN = 3
+_LINEAR_THRESHOLD = 0.03928
+
+
+def _wcag_relative_luminance(hex_color: str) -> float:
+    hex_color = hex_color.lstrip("#")
+    if len(hex_color) == _SHORT_HEX_LEN:
+        hex_color = "".join(c * 2 for c in hex_color)
+    r, g, b = (int(hex_color[i : i + 2], 16) / 255 for i in (0, 2, 4))
+
+    def linearize(c: float) -> float:
+        return c / 12.92 if c <= _LINEAR_THRESHOLD else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = linearize(r), linearize(g), linearize(b)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def get_contrast_text_color(bg_hex: str) -> str:
+    """Pick whichever of near-black/near-white contrasts better against a background hex.
+
+    Selected-item/highlight QSS paints text over the theme's *accent* color, not
+    a background token — hardcoding that text color to a token like BG_DARKEST
+    silently breaks wherever that token isn't actually dark (e.g. `DynamicColors
+    .LIGHT`, where `BG_DARKEST` is `"#f6f8fa"`, near-white). A simple perceived-
+    brightness average (no gamma correction) also isn't enough: saturated colors
+    like the default cyan accent (`#00bcd4`) score as "mid-bright" under that
+    formula and get white text, but WCAG's gamma-corrected relative luminance
+    puts it high enough that black text is actually ~4x higher contrast. Compute
+    both candidates' WCAG contrast ratios against the real background and return
+    the winner, so this stays correct for any accent/background a theme picks.
+    """
+    bg_luminance = _wcag_relative_luminance(bg_hex)
+    contrast_with_black = (bg_luminance + 0.05) / 0.05
+    contrast_with_white = 1.05 / (bg_luminance + 0.05)
+    return "#0d1117" if contrast_with_black >= contrast_with_white else "#ffffff"
+
 
 class DynamicColors:
     DARK = {
@@ -40,6 +76,7 @@ class DynamicColors:
         "ACCENT_DANGER": "#f85149",
         "GLOW_COLOR": "rgba(0, 188, 212, 0.4)",
         "DNA_PRIMARY": "#00bcd4",
+        "DNA_SECONDARY": "#a371f7",
         "CHART_COLORS": ["#58a6ff", "#3fb950", "#d29922", "#f85149", "#a371f7", "#f778ba"],
     }
     LIGHT = {
@@ -61,6 +98,7 @@ class DynamicColors:
         "ACCENT_DANGER": "#cf222e",
         "GLOW_COLOR": "rgba(0, 188, 212, 0.2)",
         "DNA_PRIMARY": "#00bcd4",
+        "DNA_SECONDARY": "#8250df",
         "CHART_COLORS": ["#0969da", "#2da44e", "#bf8700", "#cf222e", "#8250df", "#bf3989"],
     }
 
@@ -114,6 +152,7 @@ class Fonts:
     SIZE_SMALL = 11
     SIZE_NORMAL = 13
     SIZE_LARGE = 18
+    SIZE_XLARGE = 24
     FAMILY_UI = "Inter, sans-serif"
     FAMILY_HEADINGS = "Inter, sans-serif"
 

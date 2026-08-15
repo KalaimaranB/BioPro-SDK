@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QMenu,
     QProgressDialog,
     QPushButton,
     QScrollArea,
@@ -51,8 +52,24 @@ def _connect_theme_signal(callback):
     callback()
 
 
-def _apply_global_sdk_styles() -> None:
-    """Inject QToolTip styling globally and configure the QApplication palette for dark mode."""
+def apply_global_sdk_styles() -> None:
+    """Inject QToolTip styling globally and configure the QApplication palette for dark mode.
+
+    No-ops (see the `isinstance(app, QApplication)` guard below) if called
+    before a `QApplication` exists — which it reliably is the first time
+    this runs: importing this module eagerly runs this function once at
+    import time (see the bottom of this module), and for an isolated
+    plugin that import happens via `ui_daemon.py`'s
+    `from karcytics_sdk.plugin import run_ui_daemon`, well before
+    `ui_daemon_runtime.run()` ever constructs a `QApplication`. Nothing
+    calls this again afterward on its own — `theme_changed` only fires on
+    an actual user theme switch, not at startup — which left native,
+    app-level-only-stylable popups (`QToolTip`, a plain `QComboBox`'s
+    dropdown) rendering with Qt's unstyled default palette for the entire
+    session unless the user happened to switch themes. `run()` calls this
+    again explicitly right after constructing its `QApplication` to close
+    that gap.
+    """
     import re
 
     from PyQt6.QtCore import QMetaObject, Qt, QThread, QTimer
@@ -76,11 +93,13 @@ def _apply_global_sdk_styles() -> None:
         # QApplication directly from here.
         timer = QTimer()
         timer.setSingleShot(True)
-        timer.timeout.connect(_apply_global_sdk_styles)
+        timer.timeout.connect(apply_global_sdk_styles)
         timer.moveToThread(app.thread())
         timer.setParent(app)  # keep it alive until it fires; safe now that thread affinity matches
         QMetaObject.invokeMethod(timer, "start", Qt.ConnectionType.QueuedConnection)
         return
+
+    from karcytics_sdk.plugin.theme_fallback import get_contrast_text_color
 
     Colors, Fonts, _ = _get_theme_tokens()
 
@@ -97,7 +116,7 @@ def _apply_global_sdk_styles() -> None:
     palette.setColor(QPalette.ColorRole.Button, QColor(Colors.BG_LIGHT))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(Colors.FG_PRIMARY))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(Colors.ACCENT_PRIMARY))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(Colors.BG_DARKEST))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(get_contrast_text_color(Colors.ACCENT_PRIMARY)))
     palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(Colors.BG_DARKEST))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(Colors.FG_PRIMARY))
     app.setPalette(palette)
@@ -127,7 +146,7 @@ def _apply_global_sdk_styles() -> None:
 
 
 try:
-    _connect_theme_signal(_apply_global_sdk_styles)
+    _connect_theme_signal(apply_global_sdk_styles)
 except Exception:
     pass
 
@@ -243,6 +262,39 @@ class DangerButton(BioButton):
 
     def __init__(self, text: str, parent=None):
         super().__init__(text, variant="danger", parent=parent)
+
+
+class AcademyButton(BioButton):
+    """Drop-in "🎓 Cyto Academy" button for a plugin's own toolbar.
+
+    Before the isolated-plugin migration, the Hub injected an identically
+    accent-styled button into every in-process analysis panel's toolbar
+    (the old `AnalysisToolBar.btn_academy`) and wired it straight to the
+    Hub's own `AcademyManager`. Each module now runs in its own process with
+    its own separate `AcademyManager` (`runtime_services.tutorial_manager`)
+    that the Hub can no longer reach into, so a plugin wanting this entry
+    point back in its own toolbar (not just the isolated window's Help
+    menu) adds this button itself and hands it whatever widget hosts it.
+
+    `panel` only needs to resolve `.window()` at click time — via
+    `academy_driver.open_academy()`, the same shared entry point the
+    isolated window's Help > Academy menu action uses — so this works
+    whether or not `panel` is already parented into a window when the
+    button is constructed.
+    """
+
+    def __init__(self, panel: QWidget, parent=None):
+        super().__init__("🎓 Cyto Academy", variant="primary", parent=parent)
+        self._panel = panel
+        self.setObjectName("btn_academy")
+        self.setToolTip("Open Karcytics Academy for this module")
+        self.clicked.connect(self._on_clicked)
+
+    def _on_clicked(self) -> None:
+        from .academy_driver import open_academy
+
+        window = self._panel.window() or self._panel
+        open_academy(window, self._panel)
 
 
 class BioToggleButton(QPushButton):
@@ -413,6 +465,7 @@ class ModuleCard(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setObjectName("BioCard")
         _connect_theme_signal(self._apply_theme_styles)
 
@@ -501,6 +554,7 @@ class BioComboBox(QComboBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         from PyQt6.QtWidgets import QListView
 
         # Override native macOS popup view to allow proper styling
@@ -518,7 +572,10 @@ class BioComboBox(QComboBox):
         self.view().window().setMinimumWidth(self.width())
 
     def _apply_theme_styles(self) -> None:
+        from karcytics_sdk.plugin.theme_fallback import get_contrast_text_color
+
         Colors, Fonts, _ = _get_theme_tokens()
+        selection_text_color = get_contrast_text_color(Colors.ACCENT_PRIMARY)
         self.setStyleSheet(f"""
             QComboBox {{
                 combobox-popup: 0;
@@ -535,7 +592,7 @@ class BioComboBox(QComboBox):
                 background-color: {Colors.BG_DARKEST};
                 color: {Colors.FG_PRIMARY};
                 selection-background-color: {Colors.ACCENT_PRIMARY};
-                selection-color: {Colors.BG_DARKEST};
+                selection-color: {selection_text_color};
                 border: 1px solid {Colors.BORDER};
                 border-radius: 4px;
                 outline: none;
@@ -553,7 +610,7 @@ class BioComboBox(QComboBox):
             }}
             QComboBox QAbstractItemView::item:selected {{
                 background-color: {Colors.ACCENT_PRIMARY};
-                color: {Colors.BG_DARKEST};
+                color: {selection_text_color};
             }}
         """)
 
@@ -563,6 +620,7 @@ class BioSpinBox(QSpinBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
@@ -583,6 +641,7 @@ class BioDoubleSpinBox(QDoubleSpinBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
@@ -623,6 +682,7 @@ class BioListWidget(QListWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
@@ -649,6 +709,7 @@ class BioTableWidget(QTableWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         _connect_theme_signal(self._apply_theme_styles)
 
     def _apply_theme_styles(self) -> None:
@@ -692,6 +753,7 @@ class BioScrollArea(QScrollArea):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setWidgetResizable(True)
         _connect_theme_signal(self._apply_theme_styles)
 
@@ -757,6 +819,7 @@ class BioFooter(QWidget):
         parent=None,
     ):
         super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedHeight(30)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 0, 10, 0)
@@ -785,5 +848,48 @@ class BioFooter(QWidget):
                 font-size: {Fonts.SIZE_SMALL}px;
                 border: none;
                 background-color: transparent;
+            }}
+        """)
+
+
+class BioMenu(QMenu):
+    """Standardized themed context menu."""
+
+    def __init__(self, parent=None, title: str | None = None):
+        if title:
+            super().__init__(title, parent)
+        else:
+            super().__init__(parent)
+        _connect_theme_signal(self._apply_theme_styles)
+
+    def _apply_theme_styles(self) -> None:
+        from karcytics_sdk.plugin.theme_fallback import get_contrast_text_color
+
+        Colors, Fonts, _ = _get_theme_tokens()
+        selection_text_color = get_contrast_text_color(Colors.ACCENT_PRIMARY)
+        self.setStyleSheet(f"""
+            QMenu {{
+                background-color: {Colors.BG_DARKEST};
+                color: {Colors.FG_PRIMARY};
+                border: 1px solid {Colors.BORDER};
+                font-family: {Fonts.FAMILY_UI};
+                font-size: {Fonts.SIZE_NORMAL}px;
+            }}
+            QMenu::item {{
+                padding: 4px 20px 4px 20px;
+                background-color: transparent;
+                color: {Colors.FG_PRIMARY};
+            }}
+            QMenu::item:disabled {{
+                color: {Colors.FG_DISABLED};
+            }}
+            QMenu::item:selected {{
+                background-color: {Colors.ACCENT_PRIMARY};
+                color: {selection_text_color};
+            }}
+            QMenu::separator {{
+                height: 1px;
+                background: {Colors.BORDER};
+                margin: 4px 0px;
             }}
         """)

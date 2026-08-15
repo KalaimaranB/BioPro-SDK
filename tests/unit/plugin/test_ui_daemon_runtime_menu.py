@@ -285,6 +285,7 @@ class TestWireAcademyMenu:
     ):
         from PyQt6.QtWidgets import QWidget
 
+        from karcytics_sdk.plugin.academy_window import AcademyCatalogWindow
         from karcytics_sdk.plugin.runtime_services import tutorial_manager
         from karcytics_sdk.plugin.tutorial_models import Course, InfoStep
         from karcytics_sdk.plugin.ui_daemon_runtime import _build_help_menu, _wire_academy_menu
@@ -301,7 +302,13 @@ class TestWireAcademyMenu:
         window.show()
 
         _wire_academy_menu(window, panel, MagicMock())
-        window._academy_menu_action.trigger()
+
+        # AcademyCatalogWindow.exec() is a real modal event loop that only
+        # returns once a course card is clicked; stand in for that click
+        # instead of blocking the test forever waiting for interaction that
+        # will never come.
+        with patch.object(AcademyCatalogWindow, "exec", lambda self: self._start_course(course.id)):
+            window._academy_menu_action.trigger()
 
         assert tutorial_manager.active_course is course
         assert tutorial_manager.current_step.id == "s1"

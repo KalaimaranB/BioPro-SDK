@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "karcytics-sdk"
-version = "2.0.0"
+version = "2.0.1"
 description = "Software Development Kit and CLI for Karcytics."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -50,6 +50,9 @@ pythonpath = ["src"]
 filterwarnings = [
     "ignore:.*PyQt6.*:DeprecationWarning",
 ]
+# Safety net against a test hanging forever (e.g. a real modal Qt dialog
+# that never gets closed) instead of silently stalling local/CI runs.
+timeout = 60
 
 [tool.coverage.run]
 source = ["src/karcytics_sdk"]
@@ -112,6 +115,7 @@ convention = "google"
 "src/karcytics_sdk/plugin/tutorial_overlay.py" = ["C901", "PLR0912", "PLR0915", "PLR2004"]
 "src/karcytics_sdk/plugin/course_complete_overlay.py" = ["PLR2004"]
 "src/karcytics_sdk/plugin/academy_driver.py" = ["C901"]
+"src/karcytics_sdk/plugin/academy_window.py" = ["PLR2004", "PLR0915"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -15,6 +15,7 @@ single `search_root` widget instead of switching between several pages.
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -22,7 +23,13 @@ from PyQt6.QtCore import QObject, QRect, QTimer
 from PyQt6.QtWidgets import QWidget
 
 from .academy import AcademyManager
-from .tutorial_models import ActionStep, ForcedInteractionStep, InteractionStep, VerificationStep
+from .tutorial_models import (
+    ActionStep,
+    BranchingStep,
+    ForcedInteractionStep,
+    InteractionStep,
+    VerificationStep,
+)
 from .tutorial_overlay import TutorialOverlay
 
 logger = logging.getLogger(__name__)
@@ -58,6 +65,7 @@ class AcademyStepDriver(QObject):
 
         self._connections: dict[str, Any] = {}
         self._last_step_id: str | None = None
+        self._last_rendered_text: str | None = None
         self._verification_wait = 0
         self._verification_attempts = 0
         self._last_action_step_executed: str | None = None
@@ -77,6 +85,9 @@ class AcademyStepDriver(QObject):
             hasattr(self._overlay, "completion_container") and self._overlay.completion_container.isVisible()
         )
         if not step and not has_completion:
+            if self._last_step_id is not None:
+                self._last_step_id = None
+                self._apply_canvas_guide(None)
             self._overlay.hide()
             return
 
@@ -89,10 +100,12 @@ class AcademyStepDriver(QObject):
 
         if step.id != self._last_step_id:
             self._last_step_id = step.id
+            self._last_rendered_text = step.text
             self._verification_wait = 0
             self._verification_attempts = 0
             self._overlay.raise_()
             self._overlay.render_step(step)
+            self._apply_canvas_guide(step)
             if isinstance(step, InteractionStep) and step.target_widget_name:
                 self._wire_interaction_step(step)
 
@@ -100,8 +113,17 @@ class AcademyStepDriver(QObject):
             # A validator can mutate its own step's .text in place (e.g. to
             # report live progress) — render_step() only ran above on an
             # actual step change, so pick up in-place text edits here too.
-            if self._overlay.text_label.text() != step.text:
-                self._overlay.text_label.setText(step.text)
+            # Compares against the last *raw* text this driver rendered, not
+            # `text_label.text()` — that getter returns the already-rendered
+            # HTML `_update_text_rendering()` produced (bold/italic/code
+            # markup converted, `<br>` inserted), which never equals the raw
+            # markdown source once a step uses any of that syntax. Comparing
+            # against it made this branch fire on literally every tick,
+            # each time clobbering the correctly rendered bubble with the
+            # raw, unconverted `**text**` straight from `step.text`.
+            if step.text != self._last_rendered_text:
+                self._last_rendered_text = step.text
+                self._overlay._update_text_rendering(step.text)  # noqa: SLF001
             self._verification_wait += 1
             if self._verification_wait > _VALIDATION_POLL_TICKS:
                 self._verification_wait = 0
@@ -114,6 +136,27 @@ class AcademyStepDriver(QObject):
             self._run_action_step(step)
 
         self._update_targets(step)
+
+    def _apply_canvas_guide(self, step: Any | None) -> None:
+        """Draws (or clears, on `step=None`) this step's dotted guide shape
+        on the plugin's own canvas, if it has one.
+
+        Mirrors the pre-isolation Hub's own `WorkspaceWindow.timerEvent()`,
+        which walked the in-process `wizard_panel` for any child named
+        "FlowCanvas" exposing `set_tutorial_guide()` — fully duck-typed, no
+        plugin-specific import here, so any plugin's own canvas can opt in
+        the same way flow-cytometry's `FlowCanvas` already does (see its
+        `guide_data_poly`/`guide_rect`/`guide_range`/`guide_quadrant`
+        step-metadata handling). That call was dropped when this driver
+        replaced the Hub's window-level logic for isolated plugins (see
+        this class's own docstring), which silently stopped every
+        tutorial's on-canvas polygon/rect/range/quadrant guide from ever
+        appearing again — no exception, the call to draw it just never
+        happened.
+        """
+        for canvas in self._search_root.findChildren(QWidget, "FlowCanvas"):
+            if hasattr(canvas, "set_tutorial_guide"):
+                canvas.set_tutorial_guide(step)
 
     def _wire_interaction_step(self, step: InteractionStep) -> None:
         targets = self._search_root.findChildren(QWidget, step.target_widget_name)
@@ -221,3 +264,104 @@ class AcademyStepDriver(QObject):
             local_pos = self._overlay.mapFromGlobal(global_pos)
             rects.append(QRect(local_pos, w.size()))
         self._overlay.set_targets(rects)
+
+
+# ── Generic Academy launch — shared by any isolated plugin's own UI trigger ──
+#
+# Originally private to `ui_daemon_runtime.py`'s Help-menu wiring. Promoted
+# here, public, so a plugin can drive its own additional entry points (a
+# toolbar button via `components.AcademyButton`, a ribbon action, ...)
+# through the exact same path instead of each plugin re-implementing it.
+# `ui_daemon_runtime.py`'s Help > Academy action now calls straight through
+# to `open_academy()` below.
+
+
+def academy_next_step(academy_manager: AcademyManager, panel: QWidget) -> None:
+    """Handles the Academy overlay's "Next →" button for any isolated plugin.
+
+    Mirrors the Hub's own (pre-isolation) `WorkspaceWindow._on_tutorial_next()`:
+    a `BranchingStep` picks its first option as the target (or completes the
+    course on the `"__complete__"` sentinel); an interactive
+    `VerificationStep`'s "Check ✓" button runs its validator immediately
+    instead of waiting for `AcademyStepDriver`'s own poll tick; anything else
+    just advances along `next_step_id`.
+    """
+    step = academy_manager.current_step
+    if step and isinstance(step, BranchingStep):
+        first_target = next(iter(step.options.values()), None)
+        if first_target == "__complete__":
+            academy_manager.complete_course()
+            academy_manager.current_step = None
+            academy_manager._emit_step_changed()
+        elif first_target:
+            academy_manager.next_step(first_target)
+        return
+
+    if step and isinstance(step, VerificationStep) and step.allow_interaction:
+        app_state = getattr(panel, "state", None)
+        if step.validator and step.validator.validate(app_state):
+            academy_manager.next_step(step.on_success_step_id)
+        elif step.on_fail_step_id:
+            academy_manager.next_step(step.on_fail_step_id)
+        return
+
+    academy_manager.next_step()
+
+
+def build_academy_overlay(window: QWidget, panel: QWidget) -> TutorialOverlay:
+    """Builds (once) the `TutorialOverlay` + `AcademyStepDriver` pair for a
+    plugin's own Academy entry point, caching both on `window` so repeat
+    callers (e.g. clicking a toolbar button twice) reuse the same overlay
+    instead of stacking duplicates.
+    """
+    from .runtime_services import academy_event_bus, tutorial_manager
+
+    overlay = TutorialOverlay(tutorial_manager, academy_event_bus, panel)
+
+    def _on_skip() -> None:
+        tutorial_manager.active_course = None
+        tutorial_manager.current_step = None
+        overlay.hide()
+
+    overlay.btn_next.clicked.connect(lambda: academy_next_step(tutorial_manager, panel))
+    overlay.skip_requested.connect(_on_skip)
+    window._academy_overlay = overlay  # type: ignore[attr-defined]
+    window._academy_driver = AcademyStepDriver(  # type: ignore[attr-defined]
+        tutorial_manager, overlay, panel, state_provider=lambda: getattr(panel, "state", None)
+    )
+    return overlay
+
+
+def open_academy(window: QWidget, panel: QWidget) -> None:
+    """Opens this plugin's Academy course catalogue for `panel`.
+
+    The single shared entry point for triggering this plugin's own
+    `AcademyManager` UI — used by an isolated window's Help > Academy menu
+    action and by any in-panel trigger a plugin adds itself (e.g.
+    `components.AcademyButton` dropped into a toolbar). Shows
+    `AcademyCatalogWindow` — the same course-picker (cards, progress,
+    badges) the pre-isolation Hub showed — rather than silently jumping
+    into a course; picking one there starts it and raises the
+    `TutorialOverlay`. `window` just needs to tolerate two extra attributes
+    being stashed on it (`_academy_overlay`, `_academy_driver`) — a
+    `QMainWindow` in practice, but nothing here requires it.
+    """
+    from .academy_window import AcademyCatalogWindow
+    from .dialogs import show_info
+    from .runtime_services import tutorial_manager
+
+    plugin_id = os.environ.get("KARCYTICS_PLUGIN_ID", "unknown")
+    courses = tutorial_manager.get_courses_for_module(plugin_id)
+    if not courses:
+        show_info(window, "Karcytics Academy", "No courses are available for this module yet.")
+        return
+
+    def _start(course_id: str) -> None:
+        overlay = getattr(window, "_academy_overlay", None) or build_academy_overlay(window, panel)
+        tutorial_manager.start_course_confirmed(course_id)
+        overlay.setGeometry(panel.rect())
+        overlay.show()
+        overlay.raise_()
+
+    dialog = AcademyCatalogWindow(tutorial_manager, plugin_id, _start, parent=window)
+    dialog.exec()
