@@ -1,7 +1,8 @@
 """Host Tier — Core-facing subsystems and utilities for the Karcytics application and SDK CLI."""
 
-from .core_services import CoreServicesClient, CoreServicesServer
+from .core_services import CoreServicesClient, CoreServicesServer, RemoteCapabilityProxy
 from .docs import PluginDocumentation, docs_registry
+from .qt_bridge import QtThreadBridge
 from .sign_plugin import sign_plugin
 from .trust_manager import KARCYTICS_ROOT_PUBLIC_KEY_HEX, TrustManager, VerificationResult
 from .trust_overrides import LocalTrustRegistry
@@ -13,6 +14,8 @@ _AI_SYMBOLS = {"AIAssistant", "AIServerManager", "ai_manager"}
 __all__ = [
     "CoreServicesClient",
     "CoreServicesServer",
+    "RemoteCapabilityProxy",
+    "QtThreadBridge",
     "TrustManager",
     "VerificationResult",
     "LocalTrustRegistry",

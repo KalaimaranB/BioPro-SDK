@@ -40,7 +40,7 @@ karcytics-sdk = "karcytics_sdk.cli.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-karcytics_sdk = ["py.typed"]
+karcytics_sdk = ["py.typed", "plugin/*.qml"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -100,6 +100,18 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["PLR2004", "PLR0913", "PLR0915", "PLR0917"]
+# Vendored, byte-for-byte ports of the Hub's own tuned animation/coaching-UI
+# widgets (karcytics/ui/components/cyto_character.py etc. before this split)
+# — see karcytics_sdk/plugin/tutorial_overlay.py's own docstring. Splitting
+# animate()/render_step()'s branching to satisfy generic complexity
+# thresholds would risk changing carefully-tuned visual behavior for no
+# functional gain; the magic numbers are animation/geometry constants
+# (angles, pixel offsets, probabilities), not unexplained sentinels.
+"src/karcytics_sdk/plugin/cyto_character.py" = ["C901", "PLR0912", "PLR0915", "PLR2004", "PLR1714"]
+"src/karcytics_sdk/plugin/cyto_costumes.py" = ["C901", "PLR0915", "PLR0911"]
+"src/karcytics_sdk/plugin/tutorial_overlay.py" = ["C901", "PLR0912", "PLR0915", "PLR2004"]
+"src/karcytics_sdk/plugin/course_complete_overlay.py" = ["PLR2004"]
+"src/karcytics_sdk/plugin/academy_driver.py" = ["C901"]
 
 [tool.mypy]
 python_version = "3.12"

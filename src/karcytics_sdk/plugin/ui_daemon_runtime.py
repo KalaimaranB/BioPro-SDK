@@ -1,0 +1,935 @@
+"""Reusable worker-side runtime for hosting a plugin's UI in its own process.
+
+Run by `karcytics_sdk.plugin.PluginUIDaemon` from a plugin's own `.venv`
+interpreter, never imported into the Hub's process. A plugin's own
+`ui_daemon.py` should do whatever plugin-specific setup it needs (sys.path,
+PluginContext construction, entry-point initialization) and then hand a
+zero-arg panel factory to `run()` — everything from that point on (frame
+transport, the ready handshake, request dispatch, and noticing a native
+window close) is identical for every isolated plugin and lives here once.
+
+Speaks the same length-prefixed msgpack framing as `PluginDaemon`'s worker
+side, with `PluginUIDaemon`'s kind-tagged frames ({"kind": "request" |
+"response" | "event"}) since this process pushes events to the Hub
+unprompted (window_closed, theme acks) rather than only ever answering a
+call — see `daemon.py`'s `PluginUIDaemon` docstring for the Hub-side half of
+this protocol.
+"""
+
+from __future__ import annotations
+
+import os
+import struct
+import sys
+import threading
+import time
+import traceback
+from collections.abc import Callable
+from typing import Any
+
+import msgpack
+from PyQt6.QtCore import QMetaObject, QObject, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QAction
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMenu, QMessageBox, QWidget
+
+from .logging import get_logger
+
+
+def write_frame(data: dict[str, Any]) -> None:
+    """Write a length-prefixed msgpack frame to stdout."""
+    payload = msgpack.packb(data, use_bin_type=True)
+    header = struct.pack(">I", len(payload))
+    sys.stdout.buffer.write(header + payload)
+    sys.stdout.buffer.flush()
+
+
+def read_frame() -> dict[str, Any] | None:
+    """Read a length-prefixed msgpack frame from stdin, or None on EOF."""
+    header = sys.stdin.buffer.read(4)
+    if not header or len(header) < 4:  # noqa: PLR2004
+        return None
+    length = struct.unpack(">I", header)[0]
+    payload = sys.stdin.buffer.read(length)
+    if not payload or len(payload) < length:
+        return None
+    return msgpack.unpackb(payload, raw=False)
+
+
+def send_event(topic: str, payload: Any = None) -> None:
+    """Push an unsolicited event frame to the Hub (window_closed, state changes, ...)."""
+    write_frame({"kind": "event", "topic": topic, "payload": payload})
+
+
+class RequestDispatcher:
+    """Maps request method names to handlers and turns their result (or a
+    raised exception) into a response payload — the piece of the protocol
+    that has nothing to do with stdio or Qt, so it's tested without either.
+    """
+
+    def __init__(self) -> None:
+        self._handlers: dict[str, Callable[[dict[str, Any]], Any]] = {}
+
+    def register(self, method: str, handler: Callable[[dict[str, Any]], Any]) -> None:
+        """Register (or replace) the handler for a request method name."""
+        self._handlers[method] = handler
+
+    def dispatch(self, frame: dict[str, Any]) -> Any:
+        """Run the handler registered for `frame["method"]` and return its
+        result, or an `{"error": ...}` payload if the method is unknown or
+        the handler raised.
+        """
+        method = frame.get("method")
+        kwargs = frame.get("kwargs", {})
+
+        if not isinstance(method, str) or method not in self._handlers:
+            return {"error": f"Unknown method '{method}'"}
+
+        handler = self._handlers[method]
+
+        try:
+            return handler(kwargs)
+        except Exception as exc:  # noqa: BLE001
+            return {"error": f"{exc}\n{traceback.format_exc()}"}
+
+
+class ClosableMainWindow(QMainWindow):
+    """A `QMainWindow` that tells the Hub when the user closes it natively.
+
+    The Hub can only track an isolated module's lifecycle through what this
+    process tells it — there is no shared state to poll. A close initiated
+    by the *user* (clicking the OS window's close button) has to be reported
+    proactively via `window_closed`; a close initiated *by the Hub* (an
+    `exit`/`close_requested` request) is already communicated through that
+    request's own response, so `close_without_notifying_hub()` skips the
+    callback to avoid telling the Hub the same thing twice.
+    """
+
+    def __init__(self, on_close: Callable[[], None], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.project_manager: Any | None = None
+        self._on_close = on_close
+        self._suppress_close_callback = False
+        self._close_notified = False
+        self._overlay: QWidget | None = None
+
+    def close_without_notifying_hub(self) -> bool:
+        """Close as a direct consequence of a Hub request, not a user action."""
+        self._suppress_close_callback = True
+        return self.close()
+
+    def set_overlay(self, widget: QWidget | None) -> None:
+        """Track a full-window overlay (the startup loading screen) so it
+        stays sized to the central widget's content area across resizes,
+        the same way the Hub's own loading overlay tracks its stack widget.
+        """
+        self._overlay = widget
+        self._sync_overlay_geometry()
+
+    def _sync_overlay_geometry(self) -> None:
+        if self._overlay is not None and self.centralWidget() is not None:
+            self._overlay.setGeometry(self.centralWidget().rect())
+
+    def resizeEvent(self, event: Any) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._sync_overlay_geometry()
+
+    def closeEvent(self, event: Any) -> None:  # noqa: N802
+        # Qt doesn't delete a widget on close() by default, so a second
+        # close() (e.g. the Hub's `exit` request racing a user click) would
+        # otherwise fire closeEvent — and this callback — a second time for
+        # the same window.
+        if not self._suppress_close_callback and not self._close_notified:
+            self._close_notified = True
+            self._on_close()
+        super().closeEvent(event)
+
+
+class _RequestBridge(QObject):
+    """Cross-thread hop from the stdin reader thread onto the Qt GUI thread.
+
+    Request handlers (`focus`, `theme_changed`, closing the window, ...)
+    touch Qt widgets, which is only safe from the thread that owns them.
+    `pyqtSignal` delivery is thread-safe and automatically queues onto the
+    thread that owns the connected slot's `QObject` — since this bridge is
+    constructed on the GUI thread inside `run()`, emitting `request_received`
+    from the reader thread delivers the frame there instead of running the
+    handler on the reader thread directly, which is what let an earlier
+    version of this module deadlock on `window.close()` called off-thread.
+    """
+
+    request_received = pyqtSignal(dict)
+
+
+class _RequestReader:
+    """Background thread draining stdin and handing frames to `_RequestBridge`.
+
+    Runs on its own thread so a slow/blocking request handler never stalls
+    reading the next frame — mirrors `PluginUIDaemon`'s reader thread on the
+    Hub side, just for the opposite direction of traffic.
+    """
+
+    def __init__(self, bridge: _RequestBridge, logger: Any) -> None:
+        self._bridge = bridge
+        self._logger = logger
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def _loop(self) -> None:
+        while True:
+            try:
+                frame = read_frame()
+            except Exception:
+                # The 4-byte length header was read successfully (frame
+                # boundaries are intact), but its payload didn't unpack —
+                # the stream itself isn't desynced, only this one frame's
+                # content is garbage, so logging and reading the next frame
+                # is safe rather than fatal (mirrors PluginUIDaemon's own
+                # `_reader_loop` on the Hub side).
+                self._logger.warning(
+                    "ui_daemon_runtime received a malformed frame.",
+                    extra={"log_event": "malformed_frame"},
+                )
+                continue
+            if frame is None:
+                # Hub process is gone; there is no one left to talk to.
+                self._logger.info("Hub stdin pipe closed; exiting.", extra={"log_event": "stdin_closed"})
+                os._exit(0)  # noqa: SLF001
+            self._bridge.request_received.emit(frame)
+
+
+def _build_theme_menu(theme_menu: QMenu, client: Any, logger: Any) -> None:
+    """Populate `theme_menu` from the Hub's `theme.list_categorized_themes`
+    the first time it's opened, not eagerly at startup.
+
+    Eager population would add a blocking Hub round-trip to every window's
+    startup time whether or not the user ever opens this menu; deferring to
+    `aboutToShow` means the round-trip only happens for someone who actually
+    wants it, and startup never waits on the Hub being reachable at all.
+
+    The placeholder action added immediately below is not cosmetic: macOS
+    only syncs a top-level `QMenu` into the real native menu bar if it's
+    non-empty at the moment Qt's Cocoa bridge builds it (confirmed live —
+    an otherwise-identical menu left empty at insertion time, populated
+    only later via `aboutToShow`, never appeared in the native bar at all,
+    not even after being opened). A disabled placeholder gives it real
+    content from the very first sync; `_populate()` removes it before
+    adding the actual items.
+    """
+    state = {"populated": False}
+    placeholder = theme_menu.addAction("Loading…")
+    placeholder.setEnabled(False)
+
+    def _switch_theme(path: str) -> None:
+        try:
+            client.call("theme.switch_theme", path=path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to switch Hub theme.",
+                extra={"log_event": "theme_switch_failed", "error": str(exc)},
+            )
+
+    def _populate() -> None:
+        if state["populated"]:
+            return
+        state["populated"] = True
+        theme_menu.removeAction(placeholder)
+        try:
+            categorized = client.call("theme.list_categorized_themes")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Failed to list Hub themes.",
+                extra={"log_event": "theme_list_failed", "error": str(exc)},
+            )
+            unavailable = theme_menu.addAction("(Hub unavailable)")
+            unavailable.setEnabled(False)
+            return
+
+        for category, themes in categorized.items():
+            submenu = theme_menu.addMenu(category)
+            for name, path in themes:
+                action = submenu.addAction(name)
+                action.triggered.connect(lambda _checked, p=path: _switch_theme(p))
+
+    theme_menu.aboutToShow.connect(_populate)
+
+
+def _format_about_karcytics(info: dict[str, str]) -> str:
+    return (
+        f"<h3>{info.get('name', 'Karcytics')}</h3>"
+        f"<p>Version {info.get('version', 'unknown')}</p>"
+        f"<p><b>{info.get('tagline', '')}</b></p>"
+        f"<p>{info.get('description', '')}</p>"
+        f"<p>{info.get('copyright', '')}</p>"
+    )
+
+
+def _format_about_developer(info: dict[str, str]) -> str:
+    bio_paragraphs = "".join(f"<p>{p}</p>" for p in info.get("bio", "").split("\n\n"))
+    return f"<h3>{info.get('name', '')}</h3><p>{info.get('role', '')}</p>{bio_paragraphs}"
+
+
+def _show_fetched_about(  # noqa: PLR0913, PLR0917
+    window: QMainWindow,
+    client: Any,
+    logger: Any,
+    method: str,
+    title: str,
+    formatter: Callable[[dict[str, str]], str],
+) -> None:
+    """Fetch an About payload from the Hub and show it, or a plain warning
+    if the Hub can't be reached — this menu item existing at all shouldn't
+    imply CoreServices is guaranteed reachable at click time.
+    """
+    try:
+        info = client.call(method)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            f"Failed to fetch {method} from the Hub.",
+            extra={"log_event": "about_fetch_failed", "method": method, "error": str(exc)},
+        )
+        QMessageBox.warning(window, title, "Could not reach the Hub for this information.")
+        return
+    QMessageBox.about(window, title, formatter(info or {}))
+
+
+def _build_help_menu(window: QMainWindow, client: Any, logger: Any) -> None:
+    r"""A minimal Help menu for an isolated window: About Karcytics and About
+    the Developer, sourced from the Hub over `CoreServicesClient` so the
+    text (version, credits) can't drift from what the Hub's own, richer
+    in-process dialogs show (`karcytics/core/about_info.py` is the shared
+    source both read from). Fetched lazily, on click — same reasoning as
+    `_build_theme_menu`: no blocking Hub round-trip added to startup for
+    someone who may never open this menu.
+
+    `setMenuRole(NoRole)` on both actions is load-bearing, not defensive:
+    Qt's Cocoa integration auto-classifies any action whose text matches
+    `/^about\\b/i` as `QAction.MenuRole.AboutRole` unless told otherwise,
+    and macOS allows only one About-role item per application menu — a
+    slot the OS-injected "About Python" (this being a bare, unbundled
+    interpreter process) already occupies. Confirmed live: with the
+    default auto-detected role, both actions vanished entirely (not merged
+    into the app menu, not left in Help — just gone, and the now-empty
+    Help menu didn't sync to the native bar either, the same fate as an
+    empty `theme_menu` above). `NoRole` keeps them as plain items in this
+    window's own Help menu, which is what they actually are.
+    """
+    help_menu = window.menuBar().addMenu("&Help")
+
+    about_karcytics_action = QAction("About Karcytics", window)
+    about_karcytics_action.setMenuRole(QAction.MenuRole.NoRole)
+    about_karcytics_action.triggered.connect(
+        lambda: _show_fetched_about(
+            window, client, logger, "menu.get_about_karcytics", "About Karcytics", _format_about_karcytics
+        )
+    )
+    help_menu.addAction(about_karcytics_action)
+
+    about_developer_action = QAction("About the Developer", window)
+    about_developer_action.setMenuRole(QAction.MenuRole.NoRole)
+    about_developer_action.triggered.connect(
+        lambda: _show_fetched_about(
+            window,
+            client,
+            logger,
+            "menu.get_about_developer",
+            "About the Developer",
+            _format_about_developer,
+        )
+    )
+    help_menu.addAction(about_developer_action)
+
+    # No cross-process course discovery to gate this on (the Hub can't see
+    # into this process's own AcademyManager either — see
+    # academy_window.py's course-discovery docstring on the Hub side), so
+    # this is always enabled; clicking with zero registered courses just
+    # says so. Actual wiring (needs `panel`, which doesn't exist yet at
+    # `_build_menu_bar()` time — see `run()`'s own docstring) happens once
+    # `panel_factory()` has run; the action is stashed on `window` for that.
+    academy_action = QAction("🎓 Academy", window)
+    academy_action.setMenuRole(QAction.MenuRole.NoRole)
+    help_menu.addAction(academy_action)
+    window._academy_menu_action = academy_action  # type: ignore[attr-defined]
+
+
+def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
+    """Give the isolated window its own menu bar.
+
+    In-process, a plugin's panel shared the Hub's own QMainWindow, so the
+    Hub's File/Edit/Theme/Help menu bar was always reachable while using it.
+    An isolated plugin's window is a separate native window with no menu
+    bar at all unless this builds one — see the Interpreter Isolation
+    Plan's bug tracker, "menu options ... not available in the plugins".
+    Covers File > Close Window (purely local), Theme, and a minimal Help
+    menu (About Karcytics / About the Developer) — all three via
+    `CoreServicesClient`, only if the Hub registered one (see
+    `KARCYTICS_CORE_SERVICES_PORT`/`TOKEN`). The Hub's own Edit menu depends
+    on Hub-only state (undo history) with no equivalent here yet. A plugin
+    that wants its own additional top-level menus passes `configure_menus`
+    to `run()` — see there for why that happens after this function, not
+    inside it.
+    """
+    menubar = window.menuBar()
+
+    file_menu = menubar.addMenu("&File")
+    close_action = QAction("&Close Window", window)
+    close_action.triggered.connect(window.close)
+    file_menu.addAction(close_action)
+
+    port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
+    token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
+    if port and token:
+        from karcytics_sdk.host.core_services import CoreServicesClient
+
+        client = CoreServicesClient(int(port), token=token)
+        theme_menu = menubar.addMenu("&Theme")
+        if theme_menu is not None:
+            _build_theme_menu(theme_menu, client, logger)
+        _build_help_menu(window, client, logger)
+
+
+_COURSE_COMPLETE_PROGRESS = 100.0
+
+
+def _academy_next_step(tutorial_manager: Any, panel: QWidget) -> None:
+    """The Help menu Academy overlay's "Next →" handler.
+
+    Mirrors the Hub's own `WorkspaceWindow._on_tutorial_next()`: a
+    `BranchingStep` picks its first option as the target (or completes the
+    course on the `"__complete__"` sentinel); an interactive
+    `VerificationStep`'s "Check ✓" button runs its validator immediately
+    instead of waiting for `AcademyStepDriver`'s own poll tick; anything else
+    just advances along `next_step_id`.
+    """
+    from .tutorial_models import BranchingStep, VerificationStep
+
+    step = tutorial_manager.current_step
+    if step and isinstance(step, BranchingStep):
+        first_target = next(iter(step.options.values()), None)
+        if first_target == "__complete__":
+            tutorial_manager.complete_course()
+            tutorial_manager.current_step = None
+            tutorial_manager._emit_step_changed()
+        elif first_target:
+            tutorial_manager.next_step(first_target)
+        return
+
+    if step and isinstance(step, VerificationStep) and step.allow_interaction:
+        app_state = getattr(panel, "state", None)
+        if step.validator and step.validator.validate(app_state):
+            tutorial_manager.next_step(step.on_success_step_id)
+        elif step.on_fail_step_id:
+            tutorial_manager.next_step(step.on_fail_step_id)
+        return
+
+    tutorial_manager.next_step()
+
+
+def _build_academy_overlay(window: QMainWindow, panel: QWidget) -> Any:
+    """Builds (once) the `TutorialOverlay` + `AcademyStepDriver` pair for
+    this window's Help > Academy action, caching both on `window`.
+    """
+    from .academy_driver import AcademyStepDriver
+    from .runtime_services import academy_event_bus, tutorial_manager
+    from .tutorial_overlay import TutorialOverlay
+
+    overlay = TutorialOverlay(tutorial_manager, academy_event_bus, panel)
+
+    def _on_skip() -> None:
+        tutorial_manager.active_course = None
+        tutorial_manager.current_step = None
+        overlay.hide()
+
+    overlay.btn_next.clicked.connect(lambda: _academy_next_step(tutorial_manager, panel))
+    overlay.skip_requested.connect(_on_skip)
+    window._academy_overlay = overlay  # type: ignore[attr-defined]
+    window._academy_driver = AcademyStepDriver(  # type: ignore[attr-defined]
+        tutorial_manager, overlay, panel, state_provider=lambda: getattr(panel, "state", None)
+    )
+    return overlay
+
+
+def _open_academy(window: QMainWindow, panel: QWidget) -> None:
+    from .dialogs import show_info
+    from .runtime_services import tutorial_manager
+
+    plugin_id = os.environ.get("KARCYTICS_PLUGIN_ID", "unknown")
+    courses = tutorial_manager.get_courses_for_module(plugin_id)
+    if not courses:
+        show_info(window, "Karcytics Academy", "No courses are available for this module yet.")
+        return
+
+    overlay = getattr(window, "_academy_overlay", None) or _build_academy_overlay(window, panel)
+
+    # Jump into the first course that isn't already complete; once every
+    # course is done, reopening just reviews the first one again.
+    target = next(
+        (c for c in courses if tutorial_manager.get_progress(c.id) < _COURSE_COMPLETE_PROGRESS),
+        courses[0],
+    )
+    tutorial_manager.start_course_confirmed(target.id)
+    overlay.setGeometry(panel.rect())
+    overlay.show()
+    overlay.raise_()
+
+
+def _wire_academy_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
+    """Connects the Help menu's "🎓 Academy" action, built earlier by
+    `_build_help_menu()`, once `panel` actually exists.
+
+    Builds a `TutorialOverlay` + `AcademyStepDriver` lazily, on first click,
+    over this plugin's own `tutorial_manager`/`academy_event_bus` (see
+    `runtime_services.py`) — the real, local `AcademyManager` every course
+    this plugin registered via `register_courses()` already lives in.
+    """
+    action = getattr(window, "_academy_menu_action", None)
+    if action is None:
+        return
+
+    action.triggered.connect(lambda: _open_academy(window, panel))
+    logger.debug("Academy menu wired.", extra={"log_event": "academy_menu_wired"})
+
+
+def _fail_theme_gate(logger: Any, plugin_id: str, message: str) -> None:
+    """Report a fatal, diagnosable error to the Hub and terminate — never
+    silently render with a guessed palette.
+
+    A themed window built from `theme_fallback`'s hardcoded DARK/LIGHT
+    palette would *look* fine while quietly diverging from whatever the
+    Hub's user actually has configured (a differently-branded theme, a
+    custom accent, ...); nothing about that failure would ever surface. This
+    process has no UI to show an error in, so it reports through
+    `CoreServicesServer`'s own `diagnostics.report_error` RPC (the same path
+    an in-process plugin's own errors already take to the Hub's error
+    dialog) when reachable, then exits without ever calling `panel_factory()`
+    — no window, themed or otherwise, gets built on this path.
+    """
+    logger.critical(message, extra={"log_event": "theme_gate_failed"})
+
+    port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
+    token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
+    if port and token:
+        from karcytics_sdk.host.core_services import CoreServicesClient
+
+        try:
+            CoreServicesClient(int(port), token=token).call(
+                "diagnostics.report_error", message=message, plugin_id=plugin_id, fatal=True
+            )
+        except Exception:  # noqa: BLE001
+            logger.critical(
+                "Also failed to report the theme gate failure to the Hub.",
+                extra={"log_event": "theme_gate_report_failed"},
+            )
+
+    os._exit(1)
+
+
+def _confirm_hub_theme_or_exit(logger: Any, plugin_id: str) -> None:
+    """Block until the Hub's real current colors are confirmed, applying them
+    to `theme_fallback.DynamicColors` before any widget is built.
+
+    Deliberately synchronous and gating, not best-effort: a theme mismatch
+    between this window and the Hub is a real regression (see the
+    Interpreter Isolation Plan bug tracker, "colors don't match the core"),
+    not cosmetic, and `theme_fallback`'s DARK/LIGHT palettes existing at all
+    means a broken confirmation would otherwise fail *silently* — the window
+    would still render, just wrong. Refusing to build one at all keeps that
+    failure loud instead.
+    """
+    port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
+    token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
+    if not port or not token:
+        _fail_theme_gate(
+            logger,
+            plugin_id,
+            "CoreServices is not configured (no KARCYTICS_CORE_SERVICES_PORT/"
+            "KARCYTICS_CORE_SERVICES_TOKEN) — cannot confirm the Hub's real theme.",
+        )
+        return
+
+    from karcytics_sdk.host.core_services import CoreServicesClient
+
+    client = CoreServicesClient(int(port), token=token)
+    try:
+        colors = client.call("theme.get_current_colors")
+    except Exception as exc:  # noqa: BLE001
+        _fail_theme_gate(logger, plugin_id, f"Failed to fetch the Hub's current theme: {exc}")
+        return
+
+    if not colors:
+        _fail_theme_gate(logger, plugin_id, "Hub returned no theme colors.")
+        return
+
+    from .theme_fallback import DynamicColors
+
+    DynamicColors.update_from(colors)
+
+
+def _fetch_project_manager(logger: Any) -> Any | None:
+    """Best-effort fetch of the Hub's currently open project, wrapped so the
+    panel can use it exactly like the in-process case did via
+    `self.window().project_manager` (see `RemoteProjectManager`).
+
+    Unlike `_confirm_hub_theme_or_exit`, this is never fatal: "no project
+    open" (or CoreServices being briefly unreachable) is already a state
+    every caller in the panel handles as its own standalone fallback, so a
+    failure here should degrade to that same `None`, not take the window
+    down.
+    """
+    port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
+    token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
+    if not port or not token:
+        return None
+
+    from karcytics_sdk.host.core_services import CoreServicesClient, fetch_remote_project_manager
+
+    client = CoreServicesClient(int(port), token=token)
+    try:
+        return fetch_remote_project_manager(client)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Failed to fetch the Hub's active project.",
+            extra={"log_event": "project_fetch_failed", "error": str(exc)},
+        )
+        return None
+
+
+def _reveal_panel_behind_loader(loader: Any, panel: QWidget, window: ClosableMainWindow) -> None:
+    """Warp-out then fade-out `loader`, revealing `panel` underneath —
+    mirrors the Hub's own `PluginLoaderManager.crossfade_to_analysis()`
+    choreography, just run inside this window instead of the Hub's.
+
+    Waits for `panel.data_ready` when the panel implements the same Ready
+    Gate protocol the Hub's in-process panels already use (`panel_ready`/
+    `data_ready`/`begin_async_init`) — Phase 2's real completion, not merely
+    Phase 1's skeleton. A panel that doesn't implement it has nothing worth
+    masking construction of, so the loader warps out immediately instead.
+    """
+
+    def _on_warp_out_finished() -> None:
+        loader.fade_out(500)
+
+    def _on_fade_out_finished() -> None:
+        window.set_overlay(None)
+        loader.setParent(None)
+        loader.deleteLater()
+
+    loader.warp_out_finished.connect(_on_warp_out_finished)
+    loader.fade_out_finished.connect(_on_fade_out_finished)
+
+    if hasattr(panel, "panel_ready"):
+        panel.panel_ready.connect(lambda: loader.set_status_message("Rendering workspace…"))
+
+    if hasattr(panel, "data_ready"):
+        panel.data_ready.connect(loader.warp_out)
+    else:
+        loader.warp_out()
+
+
+def run(  # noqa: C901, PLR0913, PLR0915
+    panel_factory: Callable[[], QWidget],
+    *,
+    window_title: str = "Karcytics Module",
+    window_size: tuple[int, int] = (1400, 900),
+    extra_handlers: dict[str, Callable[[dict[str, Any]], Any]] | None = None,
+    configure_menus: Callable[[QMainWindow, QWidget], None] | None = None,
+    plugin_id: str = "unknown",
+) -> None:
+    """Host `panel_factory()`'s widget as a standalone top-level window in
+    this process, speaking `PluginUIDaemon`'s protocol over stdio until the
+    Hub asks this process to exit, the user closes the window, or the Hub's
+    stdin pipe closes.
+
+    Built-in request handlers: `exit` / `close_requested` (closes the
+    window and quits), `theme_changed` (calls the panel's
+    `_apply_theme_styles()` if it has one), `focus` (raises and activates
+    the window), `inject_workflow` (calls `panel.load_workflow`).
+    Pass `extra_handlers` for anything plugin-specific
+    rather than forking this function.
+
+    The menu bar this builds (File / Theme / Help — see `_build_menu_bar`)
+    is the same for every isolated plugin; different plugins wanting
+    different menus is what `configure_menus` is for. It's called once,
+    after `panel_factory()` has already run, as
+    `configure_menus(window, panel)` — deliberately *not* folded into
+    `_build_menu_bar()`, which runs before the panel exists, specifically so
+    a plugin can wire its own `QMenu`/`QAction`s straight to real panel
+    methods (`window.menuBar().addMenu("&Analysis")`, actions calling
+    `panel.run_umap()`, etc.) instead of reaching for indirection to work
+    around the panel not existing yet.
+
+    Also sets `window.project_manager` to a `RemoteProjectManager` for the
+    Hub's currently open project (or `None`), fetched once at startup —
+    see `_fetch_project_manager`.
+
+    `plugin_id` tags every log record this runtime emits — pass the real
+    plugin id from `ui_daemon.py` so a request that hangs or errors can be
+    attributed to which isolated process it came from; it defaults to
+    "unknown" only so this function keeps working for a caller that hasn't
+    been updated yet, not because "unknown" is an acceptable steady state.
+    """
+    logger = get_logger(__name__, plugin_id)
+    _confirm_hub_theme_or_exit(logger, plugin_id)
+    app = QApplication.instance() or QApplication(sys.argv)
+
+    def _notify_window_closed() -> None:
+        logger.info("Native window close.", extra={"log_event": "window_closed"})
+        send_event("window_closed", {})
+
+    window = ClosableMainWindow(on_close=_notify_window_closed)
+    window.setWindowTitle(window_title)
+    window.resize(*window_size)
+    _build_menu_bar(window, logger)
+    # Set before panel_factory() below so the panel can read it from its own
+    # __init__ or constructor path, not only from later user-triggered
+    # handlers — same attribute name and shape as WorkspaceWindow's own
+    # in-process `project_manager`, so existing `self.window().project_manager`
+    # call sites need no changes at all.
+    window.project_manager = _fetch_project_manager(logger)
+
+    # The loader stands in for the real panel until it's built — window.show()
+    # and "ready" don't wait on panel_factory() below (see that block's own
+    # comment for why not), so there needs to be *something* to show the
+    # instant the window appears. GalacticLoader renders on its own scene-
+    # graph thread, so it stays smooth even while this process's main thread
+    # is blocked importing heavy analysis libraries during Phase 1/2.
+    from .galactic_loader import GalacticLoader
+
+    loader = GalacticLoader()
+    loader.set_module(window_title)
+    # setCentralWidget() alone should be enough for QMainWindow's own
+    # layout to size its central widget automatically — window.set_overlay()
+    # is for *after* the swap below, once loader is a plain floating child
+    # no longer under that layout's control, and calling it this early set
+    # loader's geometry from centralWidget().rect() before the window had
+    # ever been shown or laid out (a tiny default rect). But QQuickWidget
+    # wraps its own offscreen QQuickWindow/render target, which has been
+    # observed to keep whatever size it had at construction (a default
+    # ~100x30 QWidget size) through the *first* paint if the only resize it
+    # ever receives is an implicit one from QMainWindow's deferred layout
+    # pass rather than a direct resize() call — pinning the animation to a
+    # small box in the corner. An explicit resize() here to the window's own
+    # (already-set, non-default) size removes that dependency on layout
+    # timing entirely.
+    loader.resize(window.size())
+    window.setCentralWidget(loader)
+
+    panel: QWidget | None = None
+
+    def _handle_close_request(_kwargs: dict[str, Any]) -> dict[str, Any]:
+        window.close_without_notifying_hub()
+        QMetaObject.invokeMethod(app, "quit")
+        return {"status": "ok"}
+
+    dispatcher = RequestDispatcher()
+    dispatcher.register("exit", _handle_close_request)
+    dispatcher.register("close_requested", _handle_close_request)
+
+    def _handle_theme_changed(kwargs: dict[str, Any]) -> dict[str, Any]:
+        colors = kwargs.get("colors")
+        if colors:
+            from .theme_fallback import DynamicColors, theme_manager
+
+            DynamicColors.update_from(colors)
+            theme_manager._apply_dynamic_styles()
+            theme_manager.theme_changed.emit()
+        if hasattr(panel, "_apply_theme_styles"):
+            panel._apply_theme_styles()
+        return {"status": "ok"}
+
+    dispatcher.register("theme_changed", _handle_theme_changed)
+
+    def _handle_focus(_kwargs: dict[str, Any]) -> dict[str, Any]:
+        window.raise_()
+        window.activateWindow()
+        return {"status": "ok"}
+
+    dispatcher.register("focus", _handle_focus)
+
+    def _handle_inject_workflow(kwargs: dict[str, Any]) -> dict[str, Any]:
+        payload = kwargs.get("payload")
+        filename = kwargs.get("filename")
+        metadata = kwargs.get("metadata")
+
+        def _do_load() -> None:
+            if os.environ.get("KARCYTICS_PENDING_WORKFLOW") == "1":
+                # Emulate Phase 2 workflow injection by staging the payload
+                panel._deferred_workflow_payload = payload
+                if filename is not None:
+                    panel._deferred_workflow_filename = filename
+                if metadata is not None:
+                    panel._deferred_workflow_metadata = metadata
+
+                if hasattr(panel, "begin_async_init"):
+                    panel.begin_async_init()
+                elif hasattr(panel, "load_workflow"):
+                    panel.load_workflow(payload)
+            # Dynamic load if the module is already running
+            elif hasattr(panel, "load_workflow"):
+                import inspect
+
+                sig = inspect.signature(panel.load_workflow)
+                call_kwargs = {}
+                if "filename" in sig.parameters:
+                    call_kwargs["filename"] = filename
+                if "metadata" in sig.parameters:
+                    call_kwargs["metadata"] = metadata
+                panel.load_workflow(payload, **call_kwargs)
+
+        from PyQt6.QtCore import QTimer
+
+        QTimer.singleShot(0, _do_load)
+
+        return {"status": "ok"}
+
+    dispatcher.register("inject_workflow", _handle_inject_workflow)
+
+    for method, handler in (extra_handlers or {}).items():
+        dispatcher.register(method, handler)
+
+    def handle_request(frame: dict[str, Any]) -> None:
+        if frame.get("kind") == "event":
+            # The Hub has no legitimate reason to push an unsolicited event
+            # at this worker — RequestDispatcher only ever answers `request`
+            # frames, so treating this as one would extract method=None,
+            # dispatch a bogus "Unknown method 'None'" error, and write back
+            # a `response` tagged with this frame's (nonexistent) request_id
+            # — a reply nothing is waiting for, so it vanishes with no
+            # visible symptom on either side. That silent version of this
+            # was a real, shipped bug (see docs/internal/24, "Known failure
+            # modes" #3); logging loudly and returning here instead turns a
+            # stray/legacy event frame into an obvious bug report.
+            logger.warning(
+                "Worker received an unsolicited event frame from the Hub; "
+                "the Hub must use call(), not push an event, to reach a worker.",
+                extra={"log_event": "unexpected_event_frame", "topic": frame.get("topic")},
+            )
+            return
+
+        request_id = frame.get("request_id")
+        method = frame.get("method")
+        start_time = time.monotonic()
+        result = dispatcher.dispatch(frame)
+        duration_ms = round((time.monotonic() - start_time) * 1000, 2)
+        if isinstance(result, dict) and "error" in result:
+            logger.warning(
+                "Request handler returned an error.",
+                extra={
+                    "log_event": "request_error",
+                    "method": method,
+                    "request_id": request_id,
+                    "duration_ms": duration_ms,
+                },
+            )
+        else:
+            logger.debug(
+                "Request handled.",
+                extra={
+                    "log_event": "request_handled",
+                    "method": method,
+                    "request_id": request_id,
+                    "duration_ms": duration_ms,
+                },
+            )
+        write_frame({"kind": "response", "request_id": request_id, "payload": result})
+
+    bridge = _RequestBridge()
+    bridge.request_received.connect(handle_request)
+
+    reader = _RequestReader(bridge, logger)
+    reader.start()
+
+    window.show()
+    # .show() alone doesn't reliably make this a genuinely activated,
+    # frontmost app on macOS for a bare interpreter process spawned via
+    # subprocess (no .app bundle/Info.plist) — and an app that never
+    # activates can end up with its native menu bar never synced into the
+    # global menu bar at all (see the Interpreter Isolation Plan's bug
+    # tracker, "menu options ... not available in the plugins"). Forcing
+    # activation here is a no-op on platforms where .show() already did it.
+    window.raise_()
+    window.activateWindow()
+    geometry = window.geometry()
+    logger.info("Worker ready.", extra={"log_event": "worker_ready"})
+    send_event(
+        "ready",
+        {"geometry": [geometry.x(), geometry.y(), geometry.width(), geometry.height()]},
+    )
+
+    # panel_factory() — Phase 1 — deliberately runs *after* the ready
+    # handshake above, same reasoning as begin_async_init() below: the
+    # loader is already up and visible, so nothing about this window's
+    # startup is gated behind it, and the loading screen now genuinely masks
+    # Phase 1's construction time too instead of only Phase 2's.
+    panel = panel_factory()
+    _wire_academy_menu(window, panel, logger)
+    if configure_menus is not None:
+        try:
+            configure_menus(window, panel)
+        except Exception as exc:  # noqa: BLE001
+            # A plugin's own menu-building code is no less capable of
+            # raising than any other plugin code, but the window itself
+            # (already visible, already showing the loader) shouldn't go
+            # down over it — the standard File/Theme/Help menus built by
+            # _build_menu_bar() are unaffected either way.
+            logger.warning(
+                "Plugin's configure_menus() raised; continuing without its menus.",
+                extra={"log_event": "configure_menus_failed", "error": str(exc)},
+            )
+    # Detach the loader before replacing the central widget — QMainWindow's
+    # ownership handling of a *previous* central widget varies across Qt
+    # versions, and this widget must survive the swap to keep animating on
+    # top of the real panel, not be silently deleted out from under it.
+    loader.setParent(None)
+    window.setCentralWidget(panel)
+    # setCentralWidget() only *schedules* a layout pass — it doesn't run one
+    # synchronously — so at this exact point panel.rect() is still whatever
+    # size Qt gave it before it was ever laid out (a bare QWidget's default
+    # 640x480), not the window's real content area. window.set_overlay()
+    # below reads centralWidget().rect() to size the loader, so without this
+    # the overlay was getting pinned to that stale 640x480 box instead of
+    # the window's actual size — same class of bug as the loader's own
+    # startup sizing fix above, just one step later in the sequence.
+    panel.resize(window.size())
+    loader.setParent(window)
+    window.set_overlay(loader)
+    loader.raise_()
+    loader.show()
+    _reveal_panel_behind_loader(loader, panel, window)
+
+    if hasattr(panel, "begin_async_init"):
+        # Deliberately deferred to *after* the ready handshake above, not
+        # called eagerly by panel_factory(): a real panel's begin_async_init()
+        # can import heavy, slow-to-cold-start dependencies (matplotlib,
+        # umap/numba JIT, ...) as its very first step. Calling it before
+        # send_event("ready") blocks that event behind however long that
+        # import takes — comfortably past the Hub's own 45s Ready Gate
+        # timeout in practice — even though nothing about building the
+        # window itself was slow. QTimer.singleShot(0, ...) runs it on the
+        # very next event-loop tick instead, after "ready" is already on
+        # the wire, mirroring how the in-process Hub always sequenced this
+        # (Phase 1's fast panel_ready before any Phase 2 import).
+        import os
+
+        if os.environ.get("KARCYTICS_PENDING_WORKFLOW") == "1":
+            logger.info("Delaying begin_async_init until workflow payload is injected via RPC.")
+        else:
+            QTimer.singleShot(0, panel.begin_async_init)
+
+    assert QThread.currentThread() is app.thread()
+    exit_code = app.exec()
+
+    logger.info("Worker exiting.", extra={"log_event": "worker_exit", "exit_code": exit_code})
+
+    # Not sys.exit(): the reader thread (daemon, non-Python-frame) is very
+    # likely still blocked inside a blocking sys.stdin.buffer.read() call at
+    # this point. Normal interpreter finalization tries to flush/close that
+    # same buffered stream and can't acquire its internal lock from a thread
+    # it can't join, which CPython reports as a fatal abort
+    # (`_enter_buffered_busy: could not acquire lock ... at interpreter
+    # shutdown`) rather than a clean exit. os._exit() terminates the process
+    # immediately at the OS level, skipping that finalization sequence
+    # entirely — the reader thread was always going to be abandoned anyway
+    # once this process exits.
+    os._exit(exit_code)

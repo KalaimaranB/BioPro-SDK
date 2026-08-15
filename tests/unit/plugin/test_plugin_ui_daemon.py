@@ -171,19 +171,138 @@ def test_ui_daemon_call_timeout_raises(mock_ui_daemon_script):
     PluginUIDaemon.stop_instance(plugin_id)
 
 
-def test_ui_daemon_send_event_is_fire_and_forget(mock_ui_daemon_script):
-    """send_event() (e.g. theme_changed) must not block waiting for a reply —
-    the worker script here never answers events, only requests.
+def test_plugin_ui_daemon_has_no_send_event_method(mock_ui_daemon_script):
+    """PluginUIDaemon must not expose a way to push an unsolicited event at
+    a worker — the worker's RequestDispatcher only ever answers `request`
+    frames, so a `send_event()` here would silently manufacture a response
+    nobody's waiting for (this was a real, shipped bug; see
+    docs/internal/24, "Known failure modes" #3). Removing the method makes
+    that misuse an immediate AttributeError at the call site instead of a
+    frame that vanishes at runtime.
     """
-    plugin_id = "test_ui_plugin_send_event"
+    plugin_id = "test_ui_plugin_no_send_event"
     daemon = PluginUIDaemon.start_instance(plugin_id, daemon_script_path=mock_ui_daemon_script)
 
-    daemon.send_event("theme_changed", {"theme": "dark"})
-
-    # The connection must still be healthy afterward.
-    assert daemon.call("ping", {}) == {"status": "pong"}
+    assert not hasattr(daemon, "send_event")
 
     PluginUIDaemon.stop_instance(plugin_id)
+
+
+def test_shutdown_concurrent_with_in_flight_ensure_started_does_not_crash(tmp_path):
+    """Regression test: shutdown() arriving while another thread is still
+    inside ensure_started() -> _start_process() -> _await_ready_frame()
+    used to race that thread's use of self._proc — _terminate_process()
+    could null out/close the subprocess the other thread was concurrently
+    reading from, which segfaulted rather than raising. shutdown() now
+    acquires the same _start_lock ensure_started() holds for its whole
+    attempt, so this must serialize cleanly instead of crashing.
+    """
+    script_path = tmp_path / "slow_ready_worker.py"
+    code = """
+import sys
+import time
+import struct
+import msgpack
+
+def write_frame(data):
+    payload = msgpack.packb(data, use_bin_type=True)
+    header = struct.pack('>I', len(payload))
+    sys.stdout.buffer.write(header + payload)
+    sys.stdout.buffer.flush()
+
+time.sleep(1.5)
+write_frame({"kind": "event", "topic": "ready", "payload": {}})
+
+while True:
+    header = sys.stdin.buffer.read(4)
+    if not header or len(header) < 4:
+        break
+"""
+    script_path.write_text(code, encoding="utf-8")
+
+    plugin_id = "test_shutdown_race"
+    daemon = PluginUIDaemon.get_instance(plugin_id, daemon_script_path=script_path)
+
+    import threading
+
+    start_exceptions = []
+
+    def _start():
+        try:
+            daemon.ensure_started(timeout=10.0)
+        except Exception as exc:  # noqa: BLE001
+            start_exceptions.append(exc)
+
+    starter = threading.Thread(target=_start)
+    starter.start()
+
+    time.sleep(0.2)  # ensure the starter thread is inside _await_ready_frame
+    daemon.shutdown()  # must not crash the process
+
+    starter.join(timeout=15.0)
+    assert not starter.is_alive()
+
+    PluginUIDaemon.stop_instance(plugin_id)
+
+
+def test_worker_env_carries_core_services_port_and_token(tmp_path):
+    """The Hub records its CoreServicesServer port and bearer token once, via
+    set_core_services(); every worker this daemon spawns afterward must see
+    both in its own environment, so the worker's own composition root can
+    build an authenticated CoreServicesClient without the Hub threading
+    them through every individual spawn call.
+    """
+    script_path = tmp_path / "env_echo_worker.py"
+    code = """
+import os
+import sys
+import struct
+import msgpack
+
+def write_frame(data):
+    payload = msgpack.packb(data, use_bin_type=True)
+    header = struct.pack('>I', len(payload))
+    sys.stdout.buffer.write(header + payload)
+    sys.stdout.buffer.flush()
+
+write_frame({
+    "kind": "event",
+    "topic": "ready",
+    "payload": {
+        "port": os.environ.get("KARCYTICS_CORE_SERVICES_PORT"),
+        "token": os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN"),
+    },
+})
+
+while True:
+    header = sys.stdin.buffer.read(4)
+    if not header or len(header) < 4:
+        break
+"""
+    script_path.write_text(code, encoding="utf-8")
+
+    plugin_id = "test_core_services_port_plugin"
+    PluginUIDaemon.set_core_services(54321, "secret-token")  # noqa: S106
+    try:
+        daemon = PluginUIDaemon.get_instance(plugin_id, daemon_script_path=script_path)
+
+        received = []
+        daemon.event_received.connect(lambda topic, payload: received.append((topic, payload)))
+        daemon.ensure_started()
+
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline and not received:
+            from PyQt6.QtWidgets import QApplication
+
+            QApplication.processEvents()
+            time.sleep(0.02)
+
+        assert received
+        assert received[0] == ("ready", {"port": "54321", "token": "secret-token"})
+    finally:
+        PluginUIDaemon.stop_instance(plugin_id)
+        PluginUIDaemon._core_services_port = None
+        PluginUIDaemon._core_services_token = None
 
 
 def test_resolve_daemon_script_finds_plugin_root_layout(tmp_path):

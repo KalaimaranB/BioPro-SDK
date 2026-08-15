@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar
@@ -42,6 +43,7 @@ class PluginDaemon(QObject):
         super().__init__(parent)
         self.plugin_id = plugin_id
         self.daemon_script_path = Path(daemon_script_path) if daemon_script_path else None
+        self._logger = get_logger(__name__, plugin_id)
         self._proc: subprocess.Popen | None = None
         self._call_lock = threading.Lock()
         self._retry_count = 0
@@ -52,6 +54,10 @@ class PluginDaemon(QObject):
         self._read_header_buf = bytearray()
         self._read_payload_buf = bytearray()
         self._read_payload_len: int | None = None
+        # Captured by _stderr_reader_loop, not read directly off self._proc
+        # .stderr — see _start_process's stderr_msg for why.
+        self._stderr_tail: deque[str] = deque(maxlen=200)
+        self._stderr_thread: threading.Thread | None = None
 
     @classmethod
     def get_instance(
@@ -142,11 +148,11 @@ class PluginDaemon(QObject):
         python_exe = self._resolve_plugin_python_executable()
         daemon_script = self._resolve_daemon_script()
 
-        logger.info(
-            "Starting PluginDaemon process for '%s' using python=%s script=%s",
-            self.plugin_id,
+        self._logger.info(
+            "Starting PluginDaemon process using python=%s script=%s",
             python_exe,
             daemon_script,
+            extra={"log_event": "process_start"},
         )
 
         sp_kwargs: dict[str, Any] = {}
@@ -155,7 +161,9 @@ class PluginDaemon(QObject):
 
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
+        env["KARCYTICS_PLUGIN_ID"] = self.plugin_id
 
+        start_time = time.monotonic()
         self._proc = subprocess.Popen(
             [str(python_exe), str(daemon_script)],
             stdin=subprocess.PIPE,
@@ -165,24 +173,31 @@ class PluginDaemon(QObject):
             **sp_kwargs,
         )
 
+        self._stderr_tail.clear()
+        self._stderr_thread = threading.Thread(
+            target=self._stderr_reader_loop, name=f"plugin-daemon-stderr-{self.plugin_id}", daemon=True
+        )
+        self._stderr_thread.start()
+
         # Read ready frame from stdout
         ready_frame = self._read_frame_with_timeout(timeout=timeout)
         if not ready_frame or ready_frame.get("status") != "ready":
-            stderr_msg = ""
-            if self._proc and self._proc.stderr:
-                try:
-                    stderr_msg = self._proc.stderr.read().decode("utf-8", errors="replace")
-                except Exception:
-                    pass
+            stderr_msg = "\n".join(self._stderr_tail)
             self._terminate_process()
             error_msg = (
                 f"PluginDaemon for '{self.plugin_id}' failed ready handshake. "
                 f"Virtual Environment connection failed! Frame: {ready_frame}. Stderr: {stderr_msg}"
             )
-            logger.critical(error_msg)
+            self._logger.critical(error_msg, extra={"log_event": "ready_handshake_failed"})
             raise RuntimeError(error_msg)
 
-        logger.info("PluginDaemon for '%s' successfully started and ready.", self.plugin_id)
+        self._logger.info(
+            "PluginDaemon successfully started and ready.",
+            extra={
+                "log_event": "process_ready",
+                "duration_ms": round((time.monotonic() - start_time) * 1000, 2),
+            },
+        )
 
     def _send_frame(self, data: dict) -> None:
         """Write a length-prefixed msgpack frame to subprocess stdin."""
@@ -192,6 +207,30 @@ class PluginDaemon(QObject):
         length_header = struct.pack(">I", len(payload))
         self._proc.stdin.write(length_header + payload)
         self._proc.stdin.flush()
+
+    def _stderr_reader_loop(self) -> None:
+        """Continuously drain the worker's stderr for as long as the process lives.
+
+        `stderr=subprocess.PIPE` gives the OS pipe a fixed buffer (64KB on
+        macOS); nothing upstream of this reads it during normal operation
+        otherwise, since only the failure path in `_start_process` ever
+        touched `self._proc.stderr` directly, and only once, after startup
+        already failed. A worker that writes enough to stderr during normal
+        operation (verbose third-party logging, repeated warnings from a
+        long computation, ...) fills that buffer and then blocks on its own
+        next `write()` call — including from its main thread — which looks
+        indistinguishable from a hang with no obvious cause. Tucking each
+        line into `_stderr_tail` instead of discarding it also means the
+        failure path above still has something real to report.
+        """
+        proc = self._proc
+        if not proc or not proc.stderr:
+            return
+        for line in iter(proc.stderr.readline, b""):
+            text = line.decode("utf-8", errors="replace").rstrip("\n")
+            if text:
+                self._stderr_tail.append(text)
+                self._logger.debug(text, extra={"log_event": "worker_stderr"})
 
     def _read_bytes_exact(self, num_bytes: int, timeout: float, buf: bytearray) -> bool:  # noqa: C901, PLR0911, PLR0912
         """Read exactly num_bytes into buf (appended in place) using non-blocking os.read.
@@ -298,7 +337,10 @@ class PluginDaemon(QObject):
 
                     while True:
                         if cancel_poll and cancel_poll():
-                            logger.info("Call '%s' cancelled by caller.", method)
+                            self._logger.info(
+                                "Call cancelled by caller.",
+                                extra={"log_event": "call_cancelled", "method": method},
+                            )
                             try:
                                 self._send_frame({"method": "cancel"})
                             except Exception:
@@ -314,15 +356,23 @@ class PluginDaemon(QObject):
 
                         response = self._read_frame_with_timeout(timeout=0.1)
                         if response is not None:
+                            self._logger.debug(
+                                "Call completed.",
+                                extra={
+                                    "log_event": "call_completed",
+                                    "method": method,
+                                    "duration_ms": round((time.time() - start_time) * 1000, 2),
+                                },
+                            )
                             return response
 
                 except Exception as exc:
-                    logger.warning(
-                        "PluginDaemon call '%s' failed (attempt %d/%d): %s",
-                        method,
+                    self._logger.warning(
+                        "PluginDaemon call failed (attempt %d/%d): %s",
                         retry + 1,
                         self._max_retries,
                         exc,
+                        extra={"log_event": "call_failed", "method": method, "attempt": retry + 1},
                     )
                     self._terminate_process()
                     if retry == self._max_retries - 1:
@@ -358,7 +408,7 @@ class PluginDaemon(QObject):
                 except Exception:
                     pass
             self._terminate_process()
-            logger.info("PluginDaemon for '%s' shut down.", self.plugin_id)
+            self._logger.info("PluginDaemon shut down.", extra={"log_event": "process_shutdown"})
 
 
 class PluginUIDaemon(QObject):
@@ -372,6 +422,13 @@ class PluginUIDaemon(QObject):
     thread can demultiplex unsolicited events from in-flight call replies
     instead of assuming every inbound frame answers the most recent request —
     the assumption `PluginDaemon.call()` safely makes, but this daemon can't.
+    That asymmetry only runs one way, though: the worker's own
+    `RequestDispatcher` never handles anything but a `request` frame, so
+    this class deliberately has no `send_event()` of its own — every call
+    the Hub makes into a worker is `call()`, full stop. (There used to be
+    one; it produced a frame the worker silently mishandled. See
+    `ui_daemon_runtime.py`'s `handle_request` for what happens now if a
+    stray `event` frame reaches a worker anyway.)
 
     Uses the same length-prefixed msgpack wire format as `PluginDaemon`
     (4-byte big-endian length header + msgpack payload) — only the payload
@@ -384,6 +441,32 @@ class PluginUIDaemon(QObject):
 
     _instances: ClassVar[dict[str, PluginUIDaemon]] = {}
     _registry_lock: ClassVar[threading.Lock] = threading.Lock()
+    _core_services_port: ClassVar[int | None] = None
+    _core_services_token: ClassVar[str | None] = None
+
+    @classmethod
+    def set_core_services(cls, port: int, token: str) -> None:
+        """Record the Hub's CoreServicesServer port and bearer token for
+        every worker this class spawns from here on.
+
+        Called once, by the Hub, right after it starts its
+        `CoreServicesServer` — see `karcytics.core.core_services_bootstrap`.
+        Every worker subsequently started (by this or any other
+        `PluginUIDaemon` instance) receives both via the
+        `KARCYTICS_CORE_SERVICES_PORT`/`KARCYTICS_CORE_SERVICES_TOKEN`
+        environment variables rather than them being threaded through every
+        individual spawn call. The token must travel alongside the port:
+        `CoreServicesServer` rejects every request without it (see
+        `core_services.py`), so a worker that only learned the port would
+        fail its very first call.
+        """
+        cls._core_services_port = port
+        cls._core_services_token = token
+        # Never log the token itself — it's a bearer credential.
+        logger.info(
+            "CoreServicesServer connection recorded.",
+            extra={"log_event": "core_services_registered", "port": port},
+        )
 
     def __init__(
         self,
@@ -394,6 +477,7 @@ class PluginUIDaemon(QObject):
         super().__init__(parent)
         self.plugin_id = plugin_id
         self.daemon_script_path = Path(daemon_script_path) if daemon_script_path else None
+        self._logger = get_logger(__name__, plugin_id)
         self._proc: subprocess.Popen | None = None
         self._start_lock = threading.Lock()
         self._next_request_id = itertools.count(1)
@@ -409,6 +493,10 @@ class PluginUIDaemon(QObject):
         # loop runs again. Blocking synchronously on such a signal here would
         # deadlock: the thing that would unblock it can't run until it unblocks.
         self._ready_queue: queue.Queue[dict[str, Any]] = queue.Queue()
+        # Captured by _stderr_reader_loop, not read directly off self._proc
+        # .stderr — see _start_process's stderr_msg for why.
+        self._stderr_tail: deque[str] = deque(maxlen=200)
+        self._stderr_thread: threading.Thread | None = None
 
     @classmethod
     def get_instance(
@@ -510,11 +598,11 @@ class PluginUIDaemon(QObject):
         python_exe = self._resolve_plugin_python_executable()
         daemon_script = self._resolve_daemon_script()
 
-        logger.info(
-            "Starting PluginUIDaemon process for '%s' using python=%s script=%s",
-            self.plugin_id,
+        self._logger.info(
+            "Starting PluginUIDaemon process using python=%s script=%s",
             python_exe,
             daemon_script,
+            extra={"log_event": "process_start"},
         )
 
         sp_kwargs: dict[str, Any] = {}
@@ -523,7 +611,15 @@ class PluginUIDaemon(QObject):
 
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
+        env["KARCYTICS_PLUGIN_ID"] = self.plugin_id
+        if getattr(self, "pending_workflow", False):
+            env["KARCYTICS_PENDING_WORKFLOW"] = "1"
+        if self._core_services_port is not None:
+            env["KARCYTICS_CORE_SERVICES_PORT"] = str(self._core_services_port)
+        if self._core_services_token is not None:
+            env["KARCYTICS_CORE_SERVICES_TOKEN"] = self._core_services_token
 
+        start_time = time.monotonic()
         self._proc = subprocess.Popen(
             [str(python_exe), str(daemon_script)],
             stdin=subprocess.PIPE,
@@ -538,23 +634,30 @@ class PluginUIDaemon(QObject):
         )
         self._reader_thread.start()
 
+        self._stderr_tail.clear()
+        self._stderr_thread = threading.Thread(
+            target=self._stderr_reader_loop, name=f"ui-daemon-stderr-{self.plugin_id}", daemon=True
+        )
+        self._stderr_thread.start()
+
         ready_frame = self._await_ready_frame(timeout=timeout)
         if ready_frame is None:
-            stderr_msg = ""
-            if self._proc and self._proc.stderr:
-                try:
-                    stderr_msg = self._proc.stderr.read().decode("utf-8", errors="replace")
-                except Exception:
-                    pass
+            stderr_msg = "\n".join(self._stderr_tail)
             self._terminate_process()
             error_msg = (
                 f"PluginUIDaemon for '{self.plugin_id}' failed ready handshake. "
                 f"Virtual Environment connection failed! Stderr: {stderr_msg}"
             )
-            logger.critical(error_msg)
+            self._logger.critical(error_msg, extra={"log_event": "ready_handshake_failed"})
             raise RuntimeError(error_msg)
 
-        logger.info("PluginUIDaemon for '%s' successfully started and ready.", self.plugin_id)
+        self._logger.info(
+            "PluginUIDaemon successfully started and ready.",
+            extra={
+                "log_event": "process_ready",
+                "duration_ms": round((time.monotonic() - start_time) * 1000, 2),
+            },
+        )
 
     def _await_ready_frame(self, timeout: float) -> dict[str, Any] | None:
         """Block until the worker's startup "ready" frame arrives.
@@ -579,6 +682,32 @@ class PluginUIDaemon(QObject):
             buf.extend(chunk)
         return bytes(buf)
 
+    def _stderr_reader_loop(self) -> None:
+        """Continuously drain the worker's stderr for as long as the process lives.
+
+        `stderr=subprocess.PIPE` gives the OS pipe a fixed buffer (64KB on
+        macOS); nothing upstream of this reads it during normal operation
+        otherwise, since only the failure path in `_start_process` ever
+        touched `self._proc.stderr` directly, and only once, after startup
+        already failed. A window process that writes enough to stderr while
+        running (verbose third-party logging, repeated warnings during a
+        long render, ...) fills that buffer and then blocks on its own next
+        `write()` call — including from its Qt main thread, which freezes
+        the whole window (a native "beachball", not a normal busy spinner)
+        with no obvious cause, since the actual computation may be
+        long-since finished. Tucking each line into `_stderr_tail` instead
+        of discarding it also means the failure path above still has
+        something real to report.
+        """
+        proc = self._proc
+        if not proc or not proc.stderr:
+            return
+        for line in iter(proc.stderr.readline, b""):
+            text = line.decode("utf-8", errors="replace").rstrip("\n")
+            if text:
+                self._stderr_tail.append(text)
+                self._logger.debug(text, extra={"log_event": "worker_stderr"})
+
     def _reader_loop(self) -> None:
         """Continuously drain the worker's stdout, demultiplexing response/event frames.
 
@@ -602,7 +731,9 @@ class PluginUIDaemon(QObject):
             try:
                 frame = msgpack.unpackb(payload, raw=False)
             except Exception:
-                logger.warning("PluginUIDaemon '%s' received a malformed frame.", self.plugin_id)
+                self._logger.warning(
+                    "PluginUIDaemon received a malformed frame.", extra={"log_event": "malformed_frame"}
+                )
                 continue
 
             kind = frame.get("kind")
@@ -614,11 +745,17 @@ class PluginUIDaemon(QObject):
                     q.put(frame.get("payload"))
             elif kind == "event":
                 topic = frame.get("topic", "")
+                self._logger.debug(
+                    "PluginUIDaemon received event.", extra={"log_event": "event_received", "topic": topic}
+                )
                 if topic == "ready":
                     self._ready_queue.put(frame.get("payload") or {})
                 self.event_received.emit(topic, frame.get("payload"))
             else:
-                logger.debug("PluginUIDaemon '%s' ignoring unknown frame kind: %r", self.plugin_id, kind)
+                self._logger.debug(
+                    "PluginUIDaemon ignoring unknown frame kind.",
+                    extra={"log_event": "unknown_frame_kind", "kind": kind},
+                )
 
         self.process_exited.emit()
 
@@ -645,20 +782,30 @@ class PluginUIDaemon(QObject):
         with self._pending_lock:
             self._pending[request_id] = response_box
 
+        start_time = time.monotonic()
         try:
             self._send_frame({"kind": "request", "request_id": request_id, "method": method, "kwargs": kwargs})
             try:
-                return response_box.get(timeout=timeout)
+                result = response_box.get(timeout=timeout)
+                self._logger.debug(
+                    "Call completed.",
+                    extra={
+                        "log_event": "call_completed",
+                        "method": method,
+                        "request_id": request_id,
+                        "duration_ms": round((time.monotonic() - start_time) * 1000, 2),
+                    },
+                )
+                return result
             except queue.Empty:
+                self._logger.warning(
+                    "Call timed out.",
+                    extra={"log_event": "call_timed_out", "method": method, "request_id": request_id},
+                )
                 raise TimeoutError(f"UI daemon call '{method}' timed out after {timeout}s.") from None
         finally:
             with self._pending_lock:
                 self._pending.pop(request_id, None)
-
-    def send_event(self, topic: str, payload: Any = None) -> None:
-        """Send a fire-and-forget event frame to the worker (e.g. theme_changed)."""
-        self.ensure_started()
-        self._send_frame({"kind": "event", "topic": topic, "payload": payload})
 
     def _terminate_process(self) -> None:
         self._stop_reader.set()
@@ -683,11 +830,25 @@ class PluginUIDaemon(QObject):
             self._pending.clear()
 
     def shutdown(self) -> None:
-        """Shutdown the UI daemon gracefully."""
-        if self._proc and self._proc.poll() is None:
-            try:
-                self._send_frame({"kind": "request", "request_id": -1, "method": "exit", "kwargs": {}})
-            except Exception:
-                pass
-        self._terminate_process()
-        logger.info("PluginUIDaemon for '%s' shut down.", self.plugin_id)
+        """Shutdown the UI daemon gracefully.
+
+        Acquires the same `_start_lock` `ensure_started()` holds for the
+        entire duration of a spawn attempt. Without this, a `shutdown()`
+        arriving while another thread is mid-`_start_process()` (e.g. still
+        blocked in `_await_ready_frame()`) races that thread's use of
+        `self._proc` — `_terminate_process()` here can null out or close
+        the same subprocess/pipe the other thread is concurrently reading
+        from, which segfaults rather than raising a catchable Python
+        exception. Waiting for the lock instead bounds `shutdown()` to that
+        in-flight attempt's own timeout in the rare case they overlap,
+        which is what `ModuleStatusWidget.cancel()` accounts for by calling
+        this off the GUI thread rather than assuming it returns instantly.
+        """
+        with self._start_lock:
+            if self._proc and self._proc.poll() is None:
+                try:
+                    self._send_frame({"kind": "request", "request_id": -1, "method": "exit", "kwargs": {}})
+                except Exception:
+                    pass
+            self._terminate_process()
+        self._logger.info("PluginUIDaemon shut down.", extra={"log_event": "process_shutdown"})

@@ -1,5 +1,7 @@
 """Plugin Tier — Core classes, UI components, and utilities for Karcytics plugins."""
 
+from .academy import AcademyManager
+from .academy_driver import AcademyStepDriver
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .base import PluginBase
 from .components import (
@@ -28,6 +30,8 @@ from .components import (
     apply_component_style,
 )
 from .context import PluginContext, UndeclaredCapabilityAccess
+from .course_complete_overlay import CourseCompleteOverlay
+from .cyto_character import CytoWidget
 from .daemon import PluginDaemon, PluginUIDaemon
 from .dialogs import (
     ask_ok_cancel,
@@ -49,8 +53,21 @@ from .logging import get_logger
 from .manifest import PluginManifest
 from .preferences import PreferenceManagerProtocol
 from .ribbon import BioRibbon
+from .runtime_services import (
+    DiagnosticsForwarder,
+    KarcyticsEvent,
+    LocalTaskScheduler,
+    RemoteEventBus,
+    diagnostics,
+    event_bus,
+    task_scheduler,
+    tutorial_manager,
+)
 from .signals import PluginSignals
 from .state import PluginState
+from .tutorial_overlay import TutorialOverlay
+from .ui_daemon_runtime import ClosableMainWindow, RequestDispatcher
+from .ui_daemon_runtime import run as run_ui_daemon
 from .validation import (
     validate_directory_exists,
     validate_file_exists,
@@ -69,12 +86,28 @@ __all__ = [
     "PluginUIDaemon",
     "PluginSignals",
     "PluginState",
+    "ClosableMainWindow",
+    "RequestDispatcher",
+    "run_ui_daemon",
     "PluginContext",
     "PluginManifest",
     "UndeclaredCapabilityAccess",
     "AnalysisBase",
     "AnalysisRunnable",
     "AnalysisWorker",
+    "LocalTaskScheduler",
+    "task_scheduler",
+    "KarcyticsEvent",
+    "RemoteEventBus",
+    "event_bus",
+    "DiagnosticsForwarder",
+    "diagnostics",
+    "AcademyManager",
+    "AcademyStepDriver",
+    "tutorial_manager",
+    "TutorialOverlay",
+    "CytoWidget",
+    "CourseCompleteOverlay",
     "CentralEventBus",
     "PreferenceManagerProtocol",
     "get_logger",

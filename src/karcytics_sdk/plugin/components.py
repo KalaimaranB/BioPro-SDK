@@ -11,9 +11,11 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
+    QProgressDialog,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -261,10 +263,33 @@ class BioToggleButton(QPushButton):
         self.style().unpolish(self)
         self.style().polish(self)
 
-        if self.custom_css_overrides:
-            self.setStyleSheet(f"QPushButton#BioToggleButton {{ {self.custom_css_overrides} }}")
-        else:
-            self.setStyleSheet("")
+        Colors, Fonts, _ = _get_theme_tokens()
+
+        css = f"""
+            BioToggleButton {{
+                background-color: {Colors.BG_DARKEST};
+                color: {Colors.FG_PRIMARY};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: {Fonts.SIZE_NORMAL}px;
+                text-align: center;
+                {{self.custom_css_overrides}}
+            }}
+            BioToggleButton:hover {{
+                background-color: {Colors.BG_LIGHT};
+                border-color: {Colors.BORDER_FOCUS};
+            }}
+            BioToggleButton:checked {{
+                background-color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.BG_DARKEST};
+                border-color: {Colors.ACCENT_PRIMARY};
+            }}
+            BioToggleButton:checked:hover {{
+                background-color: {Colors.ACCENT_PRIMARY_HOVER};
+            }}
+        """
+        self.setStyleSheet(css.replace("{self.custom_css_overrides}", self.custom_css_overrides))
 
 
 class BioRunButton(PrimaryButton):
@@ -364,7 +389,7 @@ class BioHelpButton(QPushButton):
 
     def _apply_theme_styles(self) -> None:
         self.setStyleSheet(f"""
-            QPushButton#BioHelpButton {{
+            BioHelpButton {{
                 background-color: transparent;
                 color: {Colors.FG_SECONDARY};
                 border: 1px solid {Colors.BORDER};
@@ -375,7 +400,7 @@ class BioHelpButton(QPushButton):
                 padding: 0px;
                 margin: 0px;
             }}
-            QPushButton#BioHelpButton:hover {{
+            BioHelpButton:hover {{
                 background-color: {Colors.BG_LIGHT};
                 color: {Colors.FG_PRIMARY};
                 border-color: {Colors.FG_PRIMARY};
@@ -481,8 +506,16 @@ class BioComboBox(QComboBox):
         # Override native macOS popup view to allow proper styling
         view = QListView()
         self.setView(view)
+        view.window().setWindowFlags(
+            Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint
+        )
+        view.window().setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setItemDelegate(QStyledItemDelegate(self))
         _connect_theme_signal(self._apply_theme_styles)
+
+    def showPopup(self) -> None:
+        super().showPopup()
+        self.view().window().setMinimumWidth(self.width())
 
     def _apply_theme_styles(self) -> None:
         Colors, Fonts, _ = _get_theme_tokens()
@@ -668,4 +701,89 @@ class BioScrollArea(QScrollArea):
                 background-color: transparent;
                 border: none;
             }
+        """)
+
+
+class BioProgressDialog(QProgressDialog):
+    """Standardized progress dialog."""
+
+    def __init__(self, labelText: str, cancelButtonText: str, minimum: int, maximum: int, parent=None):
+        super().__init__(labelText, cancelButtonText, minimum, maximum, parent)
+        _connect_theme_signal(self._apply_theme_styles)
+
+    def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
+        self.setStyleSheet(f"""
+            QProgressDialog {{
+                background-color: {Colors.BG_DARK};
+                color: {Colors.FG_PRIMARY};
+            }}
+            QLabel {{
+                color: {Colors.FG_PRIMARY};
+                font-size: {Fonts.SIZE_NORMAL}px;
+            }}
+            QProgressBar {{
+                background-color: {Colors.BG_DARKEST};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 4px;
+                text-align: center;
+                color: {Colors.FG_PRIMARY};
+            }}
+            QProgressBar::chunk {{
+                background-color: {Colors.ACCENT_PRIMARY};
+                border-radius: 3px;
+            }}
+            QPushButton {{
+                background-color: {Colors.BG_LIGHT};
+                color: {Colors.FG_PRIMARY};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 4px;
+                padding: 4px 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {Colors.ACCENT_PRIMARY};
+                color: {Colors.BG_DARKEST};
+            }}
+        """)
+
+
+class BioFooter(QWidget):
+    """Standardized footer matching Karcytics core status bar."""
+
+    def __init__(
+        self,
+        initial_text: str = "Welcome to Karcytics — choose a module to begin",
+        copyright_text: str = "© Kalaimaran Balasothy",
+        parent=None,
+    ):
+        super().__init__(parent)
+        self.setFixedHeight(30)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 0, 10, 0)
+
+        self.message_label = QLabel(initial_text)
+        self.copyright_label = QLabel(copyright_text)
+
+        layout.addWidget(self.message_label)
+        layout.addStretch()
+        layout.addWidget(self.copyright_label)
+
+        _connect_theme_signal(self._apply_theme_styles)
+
+    def show_message(self, text: str) -> None:
+        self.message_label.setText(text)
+
+    def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
+        self.setStyleSheet(f"""
+            BioFooter {{
+                background-color: {Colors.BG_DARKEST};
+                border-top: 1px solid {Colors.BORDER};
+            }}
+            QLabel {{
+                color: {Colors.FG_SECONDARY};
+                font-size: {Fonts.SIZE_SMALL}px;
+                border: none;
+                background-color: transparent;
+            }}
         """)
