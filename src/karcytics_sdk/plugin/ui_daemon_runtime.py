@@ -910,8 +910,6 @@ def run(  # noqa: C901, PLR0913, PLR0915
         # very next event-loop tick instead, after "ready" is already on
         # the wire, mirroring how the in-process Hub always sequenced this
         # (Phase 1's fast panel_ready before any Phase 2 import).
-        import os
-
         if os.environ.get("KARCYTICS_PENDING_WORKFLOW") == "1":
             logger.info("Delaying begin_async_init until workflow payload is injected via RPC.")
         else:

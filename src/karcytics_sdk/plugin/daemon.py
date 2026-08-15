@@ -65,11 +65,24 @@ class PluginDaemon(QObject):
         plugin_id: str,
         daemon_script_path: Path | str | None = None,
     ) -> PluginDaemon:
-        """Get or create the singleton PluginDaemon for a given plugin ID."""
+        """Get or create the singleton PluginDaemon for a given plugin ID.
+
+        Some callers (e.g. the Hub's own module-loading code) fetch the
+        instance for a side effect unrelated to spawning — before the real
+        panel factory has run — and so never pass `daemon_script_path`. If
+        that call registered the singleton first, a *later* caller that
+        does have a real path (a plugin's own factory, or a test overriding
+        the default resolution) must not have it silently discarded just
+        because the instance already existed — so an explicit path here
+        backfills onto an existing instance that doesn't have one yet,
+        rather than only ever applying at construction time.
+        """
         with PluginDaemon._registry_lock:
             if plugin_id not in PluginDaemon._instances:
                 daemon = PluginDaemon(plugin_id, daemon_script_path)
                 PluginDaemon._instances[plugin_id] = daemon
+            elif daemon_script_path is not None and PluginDaemon._instances[plugin_id].daemon_script_path is None:
+                PluginDaemon._instances[plugin_id].daemon_script_path = Path(daemon_script_path)
             return PluginDaemon._instances[plugin_id]
 
     @classmethod
@@ -504,10 +517,20 @@ class PluginUIDaemon(QObject):
         plugin_id: str,
         daemon_script_path: Path | str | None = None,
     ) -> PluginUIDaemon:
-        """Get or create the singleton PluginUIDaemon for a given plugin ID."""
+        """Get or create the singleton PluginUIDaemon for a given plugin ID.
+
+        `_instantiate_isolated_overlay` fetches the instance once up front
+        (to stamp `pending_workflow`) before the panel factory that actually
+        knows the real `daemon_script_path` has run — so a later caller
+        that does supply one must not have it silently discarded just
+        because the instance already exists; this backfills it onto an
+        existing instance that doesn't have one yet, same as `PluginDaemon`.
+        """
         with cls._registry_lock:
             if plugin_id not in cls._instances:
                 cls._instances[plugin_id] = PluginUIDaemon(plugin_id, daemon_script_path)
+            elif daemon_script_path is not None and cls._instances[plugin_id].daemon_script_path is None:
+                cls._instances[plugin_id].daemon_script_path = Path(daemon_script_path)
             return cls._instances[plugin_id]
 
     @classmethod

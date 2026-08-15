@@ -396,16 +396,6 @@ def test_runtime_focus_request_succeeds(minimal_worker_script):
     PluginUIDaemon.stop_instance(plugin_id)
 
 
-@pytest.mark.xfail(
-    reason="Pre-existing (confirmed present at HEAD before the Academy engine migration, "
-    "via a clean git-stash bisect): the worker exits with SIGABRT (-6) instead of 0 on a "
-    "normal 'exit' request, even for a bare QLabel panel with no Academy/tutorial code "
-    "involved at all. Looks like a Qt/macOS native-menu-bar or QQuickWidget (GalacticLoader) "
-    "teardown ordering issue in _handle_close_request's window.close_without_notifying_hub() "
-    "+ QMetaObject.invokeMethod(app, 'quit') sequence — worth its own investigation, out of "
-    "scope here.",
-    strict=False,
-)
 def test_runtime_exit_request_shuts_down_cleanly(minimal_worker_script):
     plugin_id = "test_runtime_exit"
     daemon = PluginUIDaemon.start_instance(plugin_id, daemon_script_path=minimal_worker_script)
