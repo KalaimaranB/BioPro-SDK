@@ -8,8 +8,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from karcytics_sdk.host.sign_plugin import PluginSigner, SecurityValidationError, TrustChain, main
-
-
 def test_sign_plugin_ignores_gitignored_files(tmp_path):
     """A gitignored file sitting on disk must never end up in the signed
     security ledger just because sign_plugin happened to walk past it.

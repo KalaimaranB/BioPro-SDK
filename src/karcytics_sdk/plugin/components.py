@@ -6,7 +6,7 @@ and maintain visual consistency across all plugins.
 
 import sys
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QStyledItemDelegate,
     QTableWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -891,5 +892,88 @@ class BioMenu(QMenu):
                 height: 1px;
                 background: {Colors.BORDER};
                 margin: 4px 0px;
+            }}
+        """)
+
+
+class WorkspaceSaveButton(QToolButton):
+    """Smart split-button for saving workflows, defaulting to Update or Save New depending on state."""
+
+    save_requested = pyqtSignal()
+    update_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("WorkspaceSaveButton")
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._menu = BioMenu(self)
+        self.action_save_new = self._menu.addAction("💾 Save As New Workflow...")
+        self.action_save_new.triggered.connect(self.save_requested.emit)
+
+        self.setMenu(self._menu)
+
+        self.clicked.connect(self._on_main_click)
+
+        self._is_dirty = False
+        self._has_workflow = False
+
+        _connect_theme_signal(self._apply_theme_styles)
+        self.set_dirty(False)
+
+    def _on_main_click(self):
+        if self._has_workflow:
+            self.update_requested.emit()
+        else:
+            self.save_requested.emit()
+
+    def set_workflow_active(self, active: bool):
+        """Set whether there is currently an active workflow loaded or saved."""
+        self._has_workflow = active
+
+    def set_dirty(self, dirty: bool):
+        self._is_dirty = dirty
+        if dirty:
+            self.setText("⚠️ Save Workspace")
+        else:
+            self.setText("✔️ All Changes Saved")
+        self._apply_theme_styles()
+
+    def _apply_theme_styles(self) -> None:
+        Colors, Fonts, _ = _get_theme_tokens()
+
+        if self._is_dirty:
+            color = Colors.ACCENT_PRIMARY
+            border = Colors.ACCENT_PRIMARY
+            font_weight = "bold"
+        else:
+            color = Colors.FG_SECONDARY
+            border = Colors.BORDER
+            font_weight = "normal"
+
+        self.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {Colors.BG_DARK};
+                color: {color};
+                border: 1px solid {border};
+                border-radius: 6px;
+                padding: 10px 30px 10px 20px;
+                font-size: 13px;
+                font-weight: {font_weight};
+            }}
+            QToolButton:hover {{
+                background-color: {Colors.BG_MEDIUM};
+                border-color: {Colors.BORDER_FOCUS};
+            }}
+            QToolButton::menu-button {{
+                border-left: 1px solid {border};
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+                width: 24px;
+            }}
+            QToolButton::menu-indicator {{
+                image: none;
             }}
         """)
