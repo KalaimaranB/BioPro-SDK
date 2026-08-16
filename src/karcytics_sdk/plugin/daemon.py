@@ -27,6 +27,43 @@ from .logging import get_logger
 
 logger = get_logger(__name__, "karcytics_sdk")
 
+# A PyInstaller-frozen Hub sets these so its own bootloader can find the Qt/
+# Python libraries bundled inside the .app — but a plugin worker is a
+# completely separate interpreter with its own venv and its own real PyQt6
+# install. Inheriting them unmodified via os.environ.copy() makes the
+# child's dynamic linker load the Hub's bundled Qt frameworks *alongside*
+# the venv's own, producing objc class collisions and a fatal
+# "Could not load the Qt platform plugin" once the worker touches any Qt
+# API (see docs/internal/26 — the UI daemon does this, the analysis daemon
+# currently doesn't, which is why only the former ever surfaced this).
+_FROZEN_ENV_VARS_TO_STRIP = (
+    "DYLD_LIBRARY_PATH",
+    "DYLD_FRAMEWORK_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "LD_LIBRARY_PATH",
+    "QT_PLUGIN_PATH",
+    "QT_QPA_PLATFORM_PLUGIN_PATH",
+    "QML2_IMPORT_PATH",
+    "QML_IMPORT_PATH",
+    "PYTHONHOME",
+)
+
+
+def _build_worker_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Build the environment for a plugin worker subprocess.
+
+    Starts from a copy of the current process's environment with the
+    frozen-Hub-specific variables above stripped, so a worker process
+    running its own venv's Python never picks up the Hub's bundled Qt/
+    library search paths.
+    """
+    env = os.environ.copy()
+    for var in _FROZEN_ENV_VARS_TO_STRIP:
+        env.pop(var, None)
+    if extra:
+        env.update(extra)
+    return env
+
 
 class PluginDaemon(QObject):
     """Manages a long-lived worker process for a plugin via length-prefixed msgpack IPC."""
@@ -172,9 +209,12 @@ class PluginDaemon(QObject):
         if sys.platform == "win32":
             sp_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 
-        env = os.environ.copy()
-        env["PYTHONUNBUFFERED"] = "1"
-        env["KARCYTICS_PLUGIN_ID"] = self.plugin_id
+        env = _build_worker_env(
+            {
+                "PYTHONUNBUFFERED": "1",
+                "KARCYTICS_PLUGIN_ID": self.plugin_id,
+            }
+        )
 
         start_time = time.monotonic()
         self._proc = subprocess.Popen(
@@ -654,15 +694,17 @@ class PluginUIDaemon(QObject):
         if sys.platform == "win32":
             sp_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
 
-        env = os.environ.copy()
-        env["PYTHONUNBUFFERED"] = "1"
-        env["KARCYTICS_PLUGIN_ID"] = self.plugin_id
+        extra_env = {
+            "PYTHONUNBUFFERED": "1",
+            "KARCYTICS_PLUGIN_ID": self.plugin_id,
+        }
         if self.pending_workflow:
-            env["KARCYTICS_PENDING_WORKFLOW"] = "1"
+            extra_env["KARCYTICS_PENDING_WORKFLOW"] = "1"
         if self._core_services_port is not None:
-            env["KARCYTICS_CORE_SERVICES_PORT"] = str(self._core_services_port)
+            extra_env["KARCYTICS_CORE_SERVICES_PORT"] = str(self._core_services_port)
         if self._core_services_token is not None:
-            env["KARCYTICS_CORE_SERVICES_TOKEN"] = self._core_services_token
+            extra_env["KARCYTICS_CORE_SERVICES_TOKEN"] = self._core_services_token
+        env = _build_worker_env(extra_env)
 
         start_time = time.monotonic()
         self._proc = subprocess.Popen(
