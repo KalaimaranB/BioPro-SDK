@@ -43,14 +43,44 @@ def write_frame(data: dict[str, Any]) -> None:
     sys.stdout.buffer.flush()
 
 
+def _read_exact_stdin(num_bytes: int) -> bytes | None:
+    """Read exactly `num_bytes` from stdin's raw file descriptor, or `None` on EOF.
+
+    Deliberately bypasses `sys.stdin.buffer` — an `io.BufferedReader` — and
+    the object lock it holds for the duration of any in-flight `.read()`
+    call. `_RequestReader._loop()` runs this on a background thread that's
+    blocked here for as long as the Hub has nothing new to say, which on
+    Windows deadlocks any *other* thread that imports a native-extension-
+    heavy module (numpy, matplotlib's Qt backend, ...) while that lock is
+    held — reproduced live: both hung indefinitely under this exact
+    condition (a background thread mid-read on `sys.stdin.buffer` while the
+    main thread imported one of them), with no such hang on macOS, and no
+    amount of extra timeout budget ever resolved it. `os.read()` on the raw
+    fd talks to the OS pipe directly and never touches that Python-level
+    lock, so it can't contend with an unrelated import on another thread
+    regardless of what that import happens to be or when it runs — unlike
+    pre-importing every module Phase 2 might ever need before this reader
+    starts, which doesn't scale and reintroduces the exact Ready-Gate-
+    blocking problem Phase 2 exists to avoid.
+    """
+    fd = sys.stdin.fileno()
+    buf = bytearray()
+    while len(buf) < num_bytes:
+        chunk = os.read(fd, num_bytes - len(buf))
+        if not chunk:
+            return None
+        buf.extend(chunk)
+    return bytes(buf)
+
+
 def read_frame() -> dict[str, Any] | None:
     """Read a length-prefixed msgpack frame from stdin, or None on EOF."""
-    header = sys.stdin.buffer.read(4)
-    if not header or len(header) < 4:  # noqa: PLR2004
+    header = _read_exact_stdin(4)
+    if header is None:
         return None
     length = struct.unpack(">I", header)[0]
-    payload = sys.stdin.buffer.read(length)
-    if not payload or len(payload) < length:
+    payload = _read_exact_stdin(length)
+    if payload is None:
         return None
     return msgpack.unpackb(payload, raw=False)
 
@@ -903,13 +933,15 @@ def run(  # noqa: C901, PLR0913, PLR0915
     logger.info("Worker exiting.", extra={"log_event": "worker_exit", "exit_code": exit_code})
 
     # Not sys.exit(): the reader thread (daemon, non-Python-frame) is very
-    # likely still blocked inside a blocking sys.stdin.buffer.read() call at
-    # this point. Normal interpreter finalization tries to flush/close that
-    # same buffered stream and can't acquire its internal lock from a thread
-    # it can't join, which CPython reports as a fatal abort
-    # (`_enter_buffered_busy: could not acquire lock ... at interpreter
-    # shutdown`) rather than a clean exit. os._exit() terminates the process
-    # immediately at the OS level, skipping that finalization sequence
-    # entirely — the reader thread was always going to be abandoned anyway
-    # once this process exits.
+    # likely still blocked inside os.read() on stdin's raw fd at this point
+    # (see _read_exact_stdin — deliberately not sys.stdin.buffer.read(), but
+    # normal interpreter finalization still tries to flush/close sys.stdin
+    # itself regardless of which call the reader thread is actually blocked
+    # in). A thread it can't join blocked on that fd is exactly the shape of
+    # CPython's fatal abort at shutdown (`_enter_buffered_busy: could not
+    # acquire lock ... at interpreter shutdown`) — os._exit() terminates the
+    # process immediately at the OS level, skipping that finalization
+    # sequence entirely, rather than relying on this being safe in every
+    # CPython version. The reader thread was always going to be abandoned
+    # anyway once this process exits.
     os._exit(exit_code)
