@@ -246,7 +246,7 @@ class PluginSigner:
         logger.info(f"Successfully signed {plugin_id}")
         logger.info("Generated: signature.bin, trust_chain.json")
 
-    def project_sign_plugin(
+    def project_sign_plugin(  # noqa: PLR0915
         self, plugin_path: Path, project_private_key_pem: bytes, delegation_path: Path | None = None
     ):
         """Verifies developer signatures and file integrity, then co-signs security.json as the Project CI runner."""
@@ -256,8 +256,9 @@ class PluginSigner:
         manifest_file = plugin_path / "pyproject.toml"
 
         if not security_file.exists() or not signature_file.exists() or not trust_file.exists():
-            logger.error("Developer signature (signature.bin) or security ledger is missing. Rejecting pipeline.")
-            return
+            msg = "Developer signature (signature.bin) or security ledger is missing. Rejecting pipeline."
+            logger.error(msg)
+            raise SecurityValidationError(msg)
 
         try:
             # 1. Parse security.json
@@ -287,7 +288,11 @@ class PluginSigner:
 
         except Exception as e:
             logger.error(f"Security validation failed before project-signing. Re-check file integrity. Error: {e}")
-            return
+            # This is the release pipeline's last chance to reject a plugin whose
+            # shipped files don't match what was actually signed — swallowing it
+            # here (rather than raising) let a mismatched release through
+            # undetected before, with the CLI still exiting 0.
+            raise
 
         # 5. Load Project CI private key
         try:
@@ -296,7 +301,7 @@ class PluginSigner:
                 raise TypeError("Project key is not a valid Ed25519PrivateKey")
         except Exception as e:
             logger.error(f"Failed to load project private key: {e}")
-            return
+            raise
 
         # 6. Sign security.json canonical bytes
         project_signature = project_private_key.sign(canonical_bytes)
@@ -314,8 +319,9 @@ class PluginSigner:
                     f.write(chain.to_json())
                 logger.info(f"Successfully appended CI runner delegation to {security_data['plugin_id']}.")
             else:
-                logger.error(f"Failed to load valid CI runner delegation from {delegation_path}")
-                return
+                msg = f"Failed to load valid CI runner delegation from {delegation_path}"
+                logger.error(msg)
+                raise SecurityValidationError(msg)
         else:
             logger.info("No delegation file provided for CI runner; assuming runner is pre-registered in trust chain.")
 

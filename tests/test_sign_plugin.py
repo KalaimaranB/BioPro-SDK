@@ -1,16 +1,19 @@
 import os
 from unittest.mock import patch
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from karcytics_sdk.host.sign_plugin import PluginSigner, TrustChain, main
+from karcytics_sdk.host.sign_plugin import PluginSigner, SecurityValidationError, TrustChain, main
 
 
 def test_project_sign_plugin_missing_files(tmp_path, caplog):
     signer = PluginSigner()
-    # Path has no security files
-    signer.project_sign_plugin(tmp_path, b"dummy")
+    # Path has no security files — must raise, not fail silently, so a broken
+    # or missing developer signature can never let a CI release ship anyway.
+    with pytest.raises(SecurityValidationError):
+        signer.project_sign_plugin(tmp_path, b"dummy")
     assert "Developer signature (signature.bin) or security ledger is missing. Rejecting pipeline." in caplog.text
 
 
@@ -59,12 +62,16 @@ authors = [{name = "Test", role = "Developer"}]
     # Without delegation, it does not append the runner link.
 
     # Error: Invalid Project PEM
-    signer.project_sign_plugin(plugin_path, b"invalid_pem")
+    with pytest.raises(Exception, match="Unable to load PEM file"):
+        signer.project_sign_plugin(plugin_path, b"invalid_pem")
     assert "Failed to load project private key" in caplog.text
 
-    # Error: Security validation failed (tamper with a file)
+    # Error: Security validation failed (tamper with a file) — must raise so
+    # the CI step actually fails instead of silently exiting 0 on a plugin
+    # whose shipped files no longer match what was signed.
     (plugin_path / "main.py").write_text("tampered")
-    signer.project_sign_plugin(plugin_path, project_pem)
+    with pytest.raises(SecurityValidationError):
+        signer.project_sign_plugin(plugin_path, project_pem)
     assert "Security validation failed before project-signing." in caplog.text
 
 
