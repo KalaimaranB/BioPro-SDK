@@ -1,4 +1,6 @@
+import json
 import os
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -6,6 +8,51 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from karcytics_sdk.host.sign_plugin import PluginSigner, SecurityValidationError, TrustChain, main
+
+
+def test_sign_plugin_ignores_gitignored_files(tmp_path):
+    """A gitignored file sitting on disk must never end up in the signed
+    security ledger just because sign_plugin happened to walk past it.
+
+    This is exactly what happened with a local .claude/settings.json: it got
+    hashed and signed on a dev machine, then CI (a clean checkout that never
+    had a .claude/ directory at all, since it's gitignored) rejected the
+    release as tampered because the file it expected didn't exist.
+    """
+    signer = PluginSigner()
+    signer.dev_dir = tmp_path / "dev"
+    signer.private_key_path = signer.dev_dir / "private.key"
+    signer.public_key_path = signer.dev_dir / "public.pub"
+    signer.delegation_path = signer.dev_dir / "delegation.json"
+    signer.init_identity()
+
+    plugin_path = tmp_path / "my_plugin"
+    plugin_path.mkdir()
+    subprocess.run(["git", "init"], cwd=plugin_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=plugin_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=plugin_path, check=True)
+
+    (plugin_path / "pyproject.toml").write_text(
+        '[project]\nname = "MyPlugin"\nversion = "1.0.0"\n'
+        '[tool.karcytics.plugin]\nid = "my_plugin"\nentry_point = "m:f"\n'
+        'authors = [{name = "Test", role = "Developer"}]\n'
+    )
+    (plugin_path / "main.py").write_text("print(1)")
+    (plugin_path / ".gitignore").write_text(".claude/\n")
+
+    claude_dir = plugin_path / ".claude"
+    claude_dir.mkdir()
+    (claude_dir / "settings.json").write_text('{"local": "only"}')
+
+    subprocess.run(["git", "add", "pyproject.toml", "main.py", ".gitignore"], cwd=plugin_path, check=True)
+
+    signer.sign_plugin(plugin_path)
+
+    security_data = json.loads((plugin_path / "security.json").read_text())
+    assert not any(".claude" in rel_path for rel_path in security_data["hashes"]), (
+        f"gitignored .claude/settings.json leaked into the signed ledger: {security_data['hashes']}"
+    )
+    assert "main.py" in security_data["hashes"]
 
 
 def test_project_sign_plugin_missing_files(tmp_path, caplog):

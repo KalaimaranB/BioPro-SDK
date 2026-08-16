@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -167,22 +168,13 @@ class PluginSigner:
         custom_excl = {e.rstrip("/") for e in (manifest.get("custom_exclusions") or [])}
         active_ignore = IGNORE_LIST | custom_excl
         hashes = {}
-        for root, dirs, files in os.walk(plugin_path):
-            dirs[:] = [d for d in dirs if d not in active_ignore]
+        for rel_path in self._discover_files(plugin_path):
+            path_parts = rel_path.split("/")
+            if any(part in active_ignore for part in path_parts):
+                continue
 
-            for file in sorted(files):
-                if file in active_ignore:
-                    continue
-
-                rel_path = os.path.relpath(os.path.join(root, file), plugin_path)
-
-                # Check path parts too, similar to TrustManager
-                path_parts = rel_path.split(os.sep)
-                if any(part in active_ignore for part in path_parts):
-                    continue
-
-                if any(file.endswith(ext) for ext in MANDATORY_EXTENSIONS):
-                    hashes[rel_path] = self._hash_file(Path(root) / file)
+            if any(rel_path.endswith(ext) for ext in MANDATORY_EXTENSIONS):
+                hashes[rel_path] = self._hash_file(plugin_path / rel_path)
 
         # Calculate Manifest Hash Binding (Normalize line endings for cross-platform)
         try:
@@ -385,6 +377,35 @@ class PluginSigner:
             f.write(chain.to_json())
 
         logger.info(f"Delegation file created: {output_file}")
+
+    def _discover_files(self, plugin_path: Path) -> list[str]:
+        """Return the plugin's candidate files as forward-slash-separated relative paths.
+
+        Prefers `git ls-files` so anything gitignored - a venv, local
+        editor/tool config, credentials, whatever else happens to exist on
+        whoever's machine runs `sign` - can never get baked into the signed
+        security ledger just because it was sitting on disk. IGNORE_LIST and
+        a plugin's own `custom_exclusions` still apply on top of this, for
+        names that are excluded by convention rather than actually gitignored.
+
+        Falls back to a raw filesystem walk (the old behavior) only when
+        plugin_path isn't inside a git repository at all.
+        """
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["git", "-C", str(plugin_path), "ls-files"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return sorted(line for line in result.stdout.splitlines() if line)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            paths = []
+            for root, _dirs, files in os.walk(plugin_path):
+                for file in files:
+                    rel = os.path.relpath(os.path.join(root, file), plugin_path)
+                    paths.append(rel.replace(os.sep, "/"))
+            return sorted(paths)
 
     def _hash_file(self, path: Path) -> str:
         hasher = hashlib.sha256()
