@@ -134,7 +134,7 @@ def apply_global_sdk_styles() -> None:
 
     tooltip_qss = f"""
         QToolTip {{
-            color: #ffffff;
+            color: {Colors.FG_PRIMARY};
             background-color: {Colors.BG_DARKEST};
             border: 1px solid {Colors.BORDER_FOCUS};
             padding: 5px 8px;
