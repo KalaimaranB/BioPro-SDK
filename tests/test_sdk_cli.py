@@ -26,6 +26,42 @@ def test_security_sign(mock_signer_class):
     mock_signer.sign_plugin.assert_called_once_with(Path("/test"))
 
 
+def test_verify_ledger_no_security_json(tmp_path):
+    """Nothing to verify yet if the plugin has never been signed — not an error."""
+    args = DummyArgs(plugin_dir=str(tmp_path))
+    assert security.verify_ledger(args) is True
+
+
+def test_verify_ledger_matches_after_sign(tmp_path):
+    from karcytics_sdk.host.sign_plugin import PluginSigner
+
+    signer = PluginSigner()
+    signer.dev_dir = tmp_path / "dev"
+    signer.private_key_path = signer.dev_dir / "private.key"
+    signer.public_key_path = signer.dev_dir / "public.pub"
+    signer.delegation_path = signer.dev_dir / "delegation.json"
+    signer.init_identity()
+
+    plugin_path = tmp_path / "my_plugin"
+    plugin_path.mkdir()
+    (plugin_path / "pyproject.toml").write_text(
+        '[project]\nname = "MyPlugin"\nversion = "1.0.0"\n'
+        '[tool.karcytics.plugin]\nid = "my_plugin"\nentry_point = "m:f"\n'
+        'authors = [{name = "Test", role = "Developer"}]\n'
+    )
+    (plugin_path / "main.py").write_text("print(1)")
+    signer.sign_plugin(plugin_path)
+
+    args = DummyArgs(plugin_dir=str(plugin_path))
+    assert security.verify_ledger(args) is True
+
+    # Tamper with a signed file — the exact drift a stale-signature commit
+    # would otherwise ship without anyone noticing until CI's project-sign
+    # step rejects it much later in the pipeline.
+    (plugin_path / "main.py").write_text("tampered")
+    assert security.verify_ledger(args) is False
+
+
 def test_scaffold_create_manifest(tmp_path):
     plugin_dir = tmp_path / "my_plugin"
     args = DummyArgs(plugin_dir=str(plugin_dir), id=None, name=None, version=None, desc=None)

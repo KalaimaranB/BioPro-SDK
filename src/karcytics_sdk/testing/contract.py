@@ -19,17 +19,30 @@ class ContractTestBase:
 
     PLUGIN_DIR: Path | None = None
 
-    @pytest.fixture
-    def manifest(self) -> PluginManifest:
+    def _resolve_manifest(self) -> PluginManifest:
+        """Load the manifest from PLUGIN_DIR. Not a fixture, so it's callable directly in tests."""
         if self.PLUGIN_DIR is None:
             pytest.fail("PLUGIN_DIR must be set on the test class.")
 
-        manifest_path = self.PLUGIN_DIR / "plugin.toml"
-        if not manifest_path.exists():
-            pytest.fail(f"plugin.toml not found at {manifest_path}")
+        # pyproject.toml's [tool.karcytics.plugin] is the current manifest
+        # format (matches ManifestParser, used by the CLI's evaluate/scaffold/
+        # migrate commands). Fall back to the legacy plugin.toml [plugin]
+        # table for plugins that haven't migrated yet.
+        pyproject_path = self.PLUGIN_DIR / "pyproject.toml"
+        if pyproject_path.exists():
+            with open(pyproject_path, encoding="utf-8") as f:
+                return PluginManifest.from_pyproject_toml(f.read())
 
-        with open(manifest_path, encoding="utf-8") as f:
+        legacy_path = self.PLUGIN_DIR / "plugin.toml"
+        if not legacy_path.exists():
+            pytest.fail(f"Neither pyproject.toml nor plugin.toml found at {self.PLUGIN_DIR}")
+
+        with open(legacy_path, encoding="utf-8") as f:
             return PluginManifest.from_toml(f.read())
+
+    @pytest.fixture
+    def manifest(self) -> PluginManifest:
+        return self._resolve_manifest()
 
     def test_manifest_is_valid(self, manifest: PluginManifest):
         """Test that the manifest is parsable and contains required fields."""

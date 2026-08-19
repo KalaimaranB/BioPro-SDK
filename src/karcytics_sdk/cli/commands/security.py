@@ -1,3 +1,5 @@
+import hashlib
+import json
 from pathlib import Path
 
 from karcytics_sdk.host.sign_plugin import PluginSigner
@@ -13,6 +15,13 @@ def setup_security_parser(subparsers):
     sign_parser = subparsers.add_parser("sign", help="Sign a plugin using the local developer identity.")
     sign_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
     sign_parser.set_defaults(func=sign_plugin)
+
+    # Command: verify-ledger
+    verify_parser = subparsers.add_parser(
+        "verify-ledger", help="Check that security.json still matches this plugin directory's files."
+    )
+    verify_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
+    verify_parser.set_defaults(func=verify_ledger)
 
     # Command: project-sign
     proj_parser = subparsers.add_parser(
@@ -66,6 +75,62 @@ def sign_plugin(args) -> bool:
     except Exception as e:
         print(f"ERROR: Failed to sign plugin: {e}")
         return False
+
+
+def verify_ledger(args) -> bool:
+    """Check that security.json still matches the working tree, without signing.
+
+    Read-only counterpart to `sign` — mirrors the hashing PluginSigner.sign_plugin
+    uses (manifest-binding hash + per-file hash audit) so plugin repos can ask
+    "would CI's project-sign step reject this?" without actually re-signing.
+    Intended for local/pre-commit use where the SDK is already installed; CI's
+    own pre-flight ledger check runs before dependencies are installed at all,
+    so it keeps its own zero-dependency copy of this same logic rather than
+    calling this command.
+    """
+    plugin_dir = Path(args.plugin_dir)
+    security_file = plugin_dir / "security.json"
+    manifest_file = plugin_dir / "pyproject.toml"
+
+    if not security_file.exists():
+        print("No security.json found yet — nothing to verify. Run 'karcytics-sdk sign .' first.")
+        return True
+
+    try:
+        security_data = json.loads(security_file.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"ERROR: Failed to read security.json: {e}")
+        return False
+
+    errors: list[str] = []
+    signer = PluginSigner()
+
+    manifest_text = manifest_file.read_text(encoding="utf-8").replace("\r\n", "\n")
+    actual_manifest_hash = hashlib.sha256(manifest_text.encode("utf-8")).hexdigest()
+    expected_manifest_hash = security_data.get("manifest_hash")
+    if actual_manifest_hash != expected_manifest_hash:
+        errors.append(
+            "pyproject.toml has changed since security.json was last signed "
+            f"(expected {expected_manifest_hash}, computed {actual_manifest_hash})."
+        )
+
+    for rel_path, expected_hash in security_data.get("hashes", {}).items():
+        file_path = plugin_dir / rel_path
+        if not file_path.exists():
+            errors.append(f"{rel_path} is listed in security.json but no longer exists.")
+            continue
+        if signer._hash_file(file_path) != expected_hash:
+            errors.append(f"{rel_path} has changed since it was signed.")
+
+    if errors:
+        print("Security ledger is out of sync with the working tree:")
+        for e in errors:
+            print(f"  - {e}")
+        print("\nRun 'karcytics-sdk sign .' to resync, then commit the result.")
+        return False
+
+    print("Security ledger matches the working tree.")
+    return True
 
 
 def project_sign_plugin(args) -> bool:

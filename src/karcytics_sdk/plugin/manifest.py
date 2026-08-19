@@ -31,6 +31,11 @@ class PluginManifest:
 
     @classmethod
     def from_toml(cls, toml_str: str) -> "PluginManifest":
+        """Parse a legacy plugin.toml's [plugin] section.
+
+        Deprecated: current plugins declare their manifest in pyproject.toml's
+        [tool.karcytics.plugin] table instead — see from_pyproject_toml.
+        """
         data = tomllib.loads(toml_str)
         plugin_data = data.get("plugin", {})
         if not plugin_data:
@@ -40,6 +45,29 @@ class PluginManifest:
             name=plugin_data.get("name", "Unknown"),
             entry_point=plugin_data.get("entry_point", ""),
             sdk_version=plugin_data.get("sdk_version", "*"),
+            requires=plugin_data.get("requires", []),
+            publishes=plugin_data.get("publishes", []),
+            subscribes=plugin_data.get("subscribes", []),
+            process_model=plugin_data.get("process_model", "in_process"),
+        )
+
+    @classmethod
+    def from_pyproject_toml(cls, toml_str: str) -> "PluginManifest":
+        """Parse a pyproject.toml's [project] + [tool.karcytics.plugin] tables.
+
+        This is the manifest format current plugins actually ship (see
+        ManifestParser, used by the CLI's evaluate/scaffold/migrate commands).
+        """
+        data = tomllib.loads(toml_str)
+        project = data.get("project", {})
+        plugin_data = data.get("tool", {}).get("karcytics", {}).get("plugin", {})
+        if not plugin_data:
+            raise ValueError("Manifest missing [tool.karcytics.plugin] section")
+
+        return cls(
+            name=plugin_data.get("name") or plugin_data.get("display_name") or project.get("name", "Unknown"),
+            entry_point=plugin_data.get("entry_point", ""),
+            sdk_version=plugin_data.get("min_core_version", plugin_data.get("sdk_version", "*")),
             requires=plugin_data.get("requires", []),
             publishes=plugin_data.get("publishes", []),
             subscribes=plugin_data.get("subscribes", []),

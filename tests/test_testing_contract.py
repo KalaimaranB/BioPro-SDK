@@ -56,13 +56,45 @@ min_core_version = "1.0.0"
     tester.test_headless_initialization(manifest)
 
 
+def test_contract_manifest_fixture_reads_pyproject_toml(tmp_path):
+    """The manifest fixture should resolve pyproject.toml's [tool.karcytics.plugin],
+    the format current plugins actually ship, not just the legacy plugin.toml.
+    """
+    plugin_dir = tmp_path / "valid_plugin"
+    plugin_dir.mkdir()
+    (plugin_dir / "pyproject.toml").write_text(
+        """
+[project]
+name = "MyPlugin"
+version = "1.0.0"
+
+[tool.karcytics.plugin]
+id = "my_plugin"
+entry_point = "dummy_module:initialize"
+min_core_version = "1.0.0"
+"""
+    )
+
+    class TestMyPluginContract(ContractTestBase):
+        PLUGIN_DIR = plugin_dir
+
+    tester = TestMyPluginContract()
+    manifest = tester._resolve_manifest()
+
+    assert manifest.entry_point == "dummy_module:initialize"
+    assert manifest.sdk_version == "1.0.0"
+
+    tester.test_manifest_is_valid(manifest)
+    tester.test_headless_initialization(manifest)
+
+
 def test_contract_missing_dir():
     class TestBadPluginContract(ContractTestBase):
         pass
 
     tester = TestBadPluginContract()
     with pytest.raises(pytest.fail.Exception):
-        tester.manifest()
+        tester._resolve_manifest()
 
 
 def test_contract_missing_file(tmp_path):
@@ -71,4 +103,4 @@ def test_contract_missing_file(tmp_path):
 
     tester = TestBadPluginContract()
     with pytest.raises(pytest.fail.Exception):
-        tester.manifest()
+        tester._resolve_manifest()

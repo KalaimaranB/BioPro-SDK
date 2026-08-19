@@ -27,6 +27,35 @@ def test_plugin_manifest_missing_section():
         PluginManifest.from_toml("invalid = true")
 
 
+def test_plugin_manifest_parsing_from_pyproject():
+    """Current plugins ship pyproject.toml's [tool.karcytics.plugin], not plugin.toml."""
+    toml_str = """
+    [project]
+    name = "synthetic-biology-module"
+
+    [tool.karcytics.plugin]
+    id = "synthetic_biology"
+    name = "Synthetic Biology Module"
+    entry_point = "karcytics_plugins.synthetic_biology:initialize"
+    min_core_version = "2.0.0"
+    process_model = "isolated"
+    requires = ["task_scheduler", "logger", "event_bus"]
+    """
+
+    manifest = PluginManifest.from_pyproject_toml(toml_str)
+    assert manifest.name == "Synthetic Biology Module"
+    assert manifest.entry_point == "karcytics_plugins.synthetic_biology:initialize"
+    assert manifest.sdk_version == "2.0.0"
+    assert manifest.process_model == "isolated"
+    assert "task_scheduler" in manifest.requires
+    assert "event_bus" in manifest.requires
+
+
+def test_plugin_manifest_pyproject_missing_section():
+    with pytest.raises(ValueError):
+        PluginManifest.from_pyproject_toml('[project]\nname = "x"\n')
+
+
 def test_plugin_context_capability_access():
     manifest = PluginManifest(name="test", entry_point="test:test", sdk_version="1.0", requires=["logger"])
 
