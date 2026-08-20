@@ -57,7 +57,18 @@ class ContractTestBase:
         # 1. Create a mocked dictionary of all possible services the plugin could ask for
         # In a real test, you might want to use actual Mock objects for these.
         class MockService:
-            pass
+            """Stands in for any capability (logger, task_scheduler, event_bus, ...).
+
+            Any attribute access resolves to a no-op callable, so calls like
+            context.get("logger").info(...) succeed during headless init
+            without needing per-capability mock classes.
+            """
+
+            def __getattr__(self, name):
+                def _noop(*args, **kwargs):
+                    return None
+
+                return _noop
 
         mocked_services = {cap: MockService() for cap in manifest.requires}
 
