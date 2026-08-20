@@ -615,6 +615,10 @@ def run(  # noqa: C901, PLR0913, PLR0915
     "unknown" only so this function keeps working for a caller that hasn't
     been updated yet, not because "unknown" is an acceptable steady state.
     """
+    from .logging import configure_plugin_logging
+
+    configure_plugin_logging(plugin_id)
+
     logger = get_logger(__name__, plugin_id)
     _confirm_hub_theme_or_exit(logger, plugin_id)
     app = QApplication.instance() or QApplication(sys.argv)

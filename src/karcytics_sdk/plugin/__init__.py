@@ -54,6 +54,18 @@ from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
 from .logging import get_logger
 from .manifest import PluginManifest
 from .preferences import PreferenceManagerProtocol
+from .rendering import (
+    MPL_RASTER_LOCK,
+    DirtyTrackingGraphicsScene,
+    DirtyTrackingGraphicsView,
+    LayeredMatplotlibCanvas,
+    RasterizeStage,
+    RasterizeToImageTask,
+    RasterLock,
+    RenderComputeStage,
+    RenderData,
+    RenderPipelineController,
+)
 from .ribbon import BioRibbon
 from .runtime_services import (
     DiagnosticsForwarder,
@@ -117,6 +129,17 @@ __all__ = [
     "PreferenceManagerProtocol",
     "get_logger",
     "KarcyticsPlugin",
+    # Rendering
+    "MPL_RASTER_LOCK",
+    "DirtyTrackingGraphicsScene",
+    "DirtyTrackingGraphicsView",
+    "LayeredMatplotlibCanvas",
+    "RasterLock",
+    "RasterizeStage",
+    "RasterizeToImageTask",
+    "RenderComputeStage",
+    "RenderData",
+    "RenderPipelineController",
     # UI Components
     "AcademyButton",
     "BioButton",

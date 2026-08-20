@@ -5,6 +5,8 @@ and route to the central diagnostic engine.
 """
 
 import logging
+import logging.handlers
+from pathlib import Path
 
 
 class PluginLoggerAdapter(logging.LoggerAdapter):
@@ -51,3 +53,45 @@ def get_logger(name: str, plugin_id: str | None = None) -> logging.Logger | Plug
     if plugin_id:
         return PluginLoggerAdapter(logger, plugin_id)
     return logger
+
+
+def configure_plugin_logging(plugin_id: str, log_dir: Path | None = None) -> Path:
+    """Give an isolated plugin worker its own durable, local log file.
+
+    Without this, an isolated worker's root logger has no handlers at all:
+    Python's own last-resort handler only ever prints WARNING+ to stderr, so
+    every `.debug()`/`.info()` call a plugin makes is silently dropped, not
+    just unrelayed. `PluginDaemon._stderr_reader_loop` on the Hub side only
+    tails whatever *does* reach stderr, and only the last 200 lines, so
+    nothing survives a crash on disk regardless. This adds a rotating file
+    handler under `~/.karcytics/logs/plugin_workers/<plugin_id>.log` (kept
+    distinct from the Hub-relayed `logs/plugins/<plugin_id>.log` path so the
+    two processes never contend as concurrent writers on one file) and a
+    stderr handler so DEBUG+ actually reaches the existing relay too.
+    Idempotent — safe to call more than once for the same process.
+    """
+    root = logging.getLogger()
+    if getattr(root, "_karcytics_plugin_logging_configured", False):
+        return root._karcytics_plugin_log_file  # type: ignore[attr-defined]
+
+    if log_dir is None:
+        log_dir = Path.home() / ".karcytics" / "logs" / "plugin_workers"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"{plugin_id}.log"
+
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+    stream_handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+
+    root.setLevel(logging.DEBUG)
+    root.addHandler(file_handler)
+    root.addHandler(stream_handler)
+    root._karcytics_plugin_logging_configured = True  # type: ignore[attr-defined]
+    root._karcytics_plugin_log_file = log_file  # type: ignore[attr-defined]
+    return log_file

@@ -150,9 +150,10 @@ Dispatched using `PluginBase` helpers:
 engine = NormalizationEngine()
 worker = self.create_worker(engine, self.state)
 
-# Bind worker signal hooks
-worker.signals.progress.connect(self.on_progress)
-worker.signals.completed.connect(self.on_success)
+# Bind worker signal hooks BEFORE dispatch, so no early emission is missed
+worker.progress.connect(self.on_progress)
+worker.finished.connect(self.on_success)
+worker.error.connect(self.on_failure)
 
 # Dispatches to standard QThreadPool
 self.start_worker(worker)

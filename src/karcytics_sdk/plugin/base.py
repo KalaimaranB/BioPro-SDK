@@ -4,9 +4,11 @@ Provides the main PluginBase class that all plugins should inherit from,
 with integrated state management and undo/redo support.
 """
 
+from __future__ import annotations
+
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtWidgets import QWidget
 
@@ -20,9 +22,16 @@ except ImportError:
     # handler). Same pattern already used by components.py and cyto_character.py.
     from .theme_fallback import Colors, theme_manager
 
+from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .events import CentralEventBus
 from .signals import PluginSignals
 from .state import PluginState
+
+if TYPE_CHECKING:
+    from karcytics_sdk.interfaces.i_task_scheduler import ITaskScheduler
+
+    from .rendering.lock import RasterLock
+    from .rendering.pipeline import RasterizeStage, RenderComputeStage, RenderPipelineController
 
 
 class PluginBase(QWidget):
@@ -245,6 +254,75 @@ class PluginBase(QWidget):
     def shutdown(self) -> None:
         """Default shutdown. Subclasses should override if managing GPU models."""
         pass
+
+    # ── Background work ─────────────────────────────────────────────
+
+    def create_worker(self, analyzer: AnalysisBase, state: PluginState | None = None) -> AnalysisWorker:
+        """Build an `AnalysisWorker` wrapping `analyzer`, ready for `start_worker()` dispatch.
+
+        Kept as a separate call from `start_worker()` specifically so
+        callers can connect to the worker's signals (`progress`, `finished`,
+        `error`, `cancelled`) before the analyzer starts running on another
+        thread — connecting after `start_worker()` risks missing an
+        emission that fires before the connection is made.
+        """
+        return AnalysisWorker(analyzer, state, parent=self)
+
+    def start_worker(self, worker: AnalysisWorker) -> AnalysisWorker:
+        """Dispatch a worker built by `create_worker()` onto the shared `QThreadPool`.
+
+        Uses `AnalysisRunnable` directly — the same `QThreadPool` adapter
+        `runtime_services.LocalTaskScheduler.submit()` uses internally —
+        rather than routing through a task scheduler's `submit(analyzer,
+        state)`, because that call always builds its own fresh
+        `AnalysisWorker` from an analyzer/state pair and has no way to
+        accept an already-constructed worker. The whole point of the
+        `create_worker()`/`start_worker()` split is that callers connect
+        signals on the exact worker instance `create_worker()` returned
+        before dispatch, so that same instance must be the one that runs.
+        """
+        from PyQt6.QtCore import QThreadPool
+
+        QThreadPool.globalInstance().start(AnalysisRunnable(worker))
+        return worker
+
+    def create_render_pipeline(
+        self,
+        compute_stage: RenderComputeStage,
+        rasterize_stage: RasterizeStage,
+        target_factory: Callable[[], Any],
+        raster_lock: RasterLock | None = None,
+        task_scheduler: ITaskScheduler | None = None,
+    ) -> RenderPipelineController:
+        """Build a `RenderPipelineController` pairing `compute_stage` with `rasterize_stage`.
+
+        For plugins that want the async-compute/locked-rasterize split
+        (see `rendering.pipeline`) without adopting
+        `rendering.LayeredMatplotlibCanvas` wholesale — e.g. a one-off
+        "export image" action. `target_factory` builds the object
+        `rasterize_stage.rasterize()` draws onto (e.g. a fresh matplotlib
+        `Axes`) each time a request completes. `task_scheduler` defaults to
+        the process-wide `runtime_services.task_scheduler` singleton but is
+        overridable — e.g. with a synchronous fake in tests — mirroring
+        `rendering.LayeredMatplotlibCanvas`'s own constructor for the same
+        reason.
+        """
+        from .rendering.lock import MPL_RASTER_LOCK
+        from .rendering.pipeline import RenderPipelineController
+
+        if task_scheduler is None:
+            from .runtime_services import task_scheduler as default_task_scheduler
+
+            task_scheduler = default_task_scheduler
+
+        return RenderPipelineController(
+            compute_stage=compute_stage,
+            rasterize_stage=rasterize_stage,
+            raster_lock=raster_lock or MPL_RASTER_LOCK,
+            task_scheduler=task_scheduler,
+            target_factory=target_factory,
+            parent=self,
+        )
 
     # ── Two-phase loading protocol ────────────────────────────────────
     #
