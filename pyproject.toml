@@ -17,6 +17,7 @@ classifiers = [
 ]
 dependencies = [
     "cryptography>=41.0.0",
+    "matplotlib>=3.8.0",
     "msgpack>=1.0.0",
     "numpy",
     "pandas",

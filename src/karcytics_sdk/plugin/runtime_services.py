@@ -262,6 +262,13 @@ class DiagnosticsForwarder:
     call sites need no change beyond their import. `exception` crosses the
     wire as its string form — a live `BaseException` isn't msgpack-
     serializable, and the Hub-side handler only ever needs it for display.
+
+    The traceback is captured here, in this process, via `traceback.
+    format_exc()` — the same call the Hub's own `report_error()` makes, just
+    executed where the real exception context still exists. Call this from
+    inside the `except:` block handling `exception`, same as the in-process
+    equivalent; called outside one, this just sends `None` for both fields,
+    same as the Hub-side method does today.
     """
 
     def report_error(
@@ -271,11 +278,14 @@ class DiagnosticsForwarder:
         plugin_id: str | None = None,
         fatal: bool = False,
     ) -> None:
+        import traceback
+
         send_event(
             "diagnostics_error",
             {
                 "message": message,
                 "exception": str(exception) if exception is not None else None,
+                "traceback": traceback.format_exc() if exception is not None else None,
                 "plugin_id": plugin_id,
                 "fatal": fatal,
             },

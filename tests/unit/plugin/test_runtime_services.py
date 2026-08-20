@@ -231,6 +231,7 @@ class TestDiagnosticsForwarder:
                 {
                     "message": "oops",
                     "exception": None,
+                    "traceback": None,
                     "plugin_id": "flow_cytometry",
                     "fatal": True,
                 },
@@ -252,8 +253,48 @@ class TestDiagnosticsForwarder:
 
         assert sent[0][1]["exception"] == "nope"
 
+    def test_report_error_captures_a_real_traceback_when_called_from_an_except_block(self, monkeypatch):
+        """Without this, a caught exception's stack trace never reached the
+        Hub at all — only `str(exception)` did (the message, not the frames).
+        `traceback.format_exc()` only returns anything useful when called
+        from inside the `except:` block still handling the exception, so
+        this must actually raise/catch rather than construct `ValueError`
+        directly.
+        """
+        sent = []
+        monkeypatch.setattr(
+            "karcytics_sdk.plugin.runtime_services.send_event",
+            lambda topic, payload=None: sent.append((topic, payload)),
+        )
+
+        try:
+            raise ValueError("nope")
+        except ValueError as exc:
+            DiagnosticsForwarder().report_error("bad transform", exception=exc)
+
+        tb = sent[0][1]["traceback"]
+        assert tb is not None
+        assert "ValueError: nope" in tb
+        assert "Traceback (most recent call last)" in tb
+
+    def test_report_error_without_exception_sends_no_traceback(self, monkeypatch):
+        sent = []
+        monkeypatch.setattr(
+            "karcytics_sdk.plugin.runtime_services.send_event",
+            lambda topic, payload=None: sent.append((topic, payload)),
+        )
+
+        DiagnosticsForwarder().report_error("just a message")
+
+        assert sent[0][1]["traceback"] is None
+
     def test_module_level_diagnostics_is_a_diagnostics_forwarder(self):
         assert isinstance(diagnostics, DiagnosticsForwarder)
+
+    def test_diagnostics_forwarder_satisfies_icrashreporter(self):
+        from karcytics_sdk.interfaces import ICrashReporter
+
+        assert isinstance(diagnostics, ICrashReporter)
 
 
 class TestLocalAcademyEventBus:
