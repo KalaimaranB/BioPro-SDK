@@ -13,22 +13,12 @@ from PyQt6.QtWidgets import QWidget
 try:
     from karcytics.ui.theme import Colors, theme_manager
 except ImportError:
-
-    class FallbackColors:
-        BG_DARKEST = "#121212"
-        FG_PRIMARY = "#FFFFFF"
-        PRIMARY = "#007ACC"
-
-    Colors = FallbackColors
-
-    class MockThemeManager:
-        class MockSignal:
-            def connect(self, *args):
-                pass
-
-        theme_changed = MockSignal()
-
-    theme_manager = MockThemeManager()
+    # In an isolated plugin .venv, karcytics.ui.theme is never importable.
+    # theme_fallback provides the SDK's canonical fallback: Colors reads live
+    # (via DynamicColors) and theme_manager.theme_changed actually fires when
+    # the Hub pushes a new theme (see ui_daemon_runtime.py's theme_changed
+    # handler). Same pattern already used by components.py and cyto_character.py.
+    from .theme_fallback import Colors, theme_manager
 
 from .events import CentralEventBus
 from .signals import PluginSignals

@@ -22,39 +22,10 @@ from PyQt6.QtWidgets import (
 try:
     from karcytics.ui.theme import Colors, Fonts, theme_manager
 except ImportError:
-
-    class FallbackColors:
-        ACCENT_PRIMARY = "#007ACC"
-        BG_DARKEST = "#121212"
-        ACCENT_PRIMARY_HOVER = "#005999"
-        BG_MEDIUM = "#1E1E1E"
-        FG_SECONDARY = "#888888"
-        GLOW_COLOR = "transparent"
-        BG_DARK = "#1A1A1A"
-        BORDER = "#333333"
-        BG_LIGHT = "#252525"
-        FG_PRIMARY = "#FFFFFF"
-        ACCENT_SUCCESS = "#28a745"
-        FG_DISABLED = "#6c757d"
-
-    class FallbackFonts:
-        FAMILY_UI = "Segoe UI, Arial"
-        FAMILY_HEADINGS = "Segoe UI, Arial"
-        SIZE_LARGE = 18
-        SIZE_NORMAL = 13
-        SIZE_SMALL = 11
-
-    Colors = FallbackColors
-    Fonts = FallbackFonts
-
-    class MockThemeManager:
-        class MockSignal:
-            def connect(self, callback):
-                pass
-
-        theme_changed = MockSignal()
-
-    theme_manager = MockThemeManager()
+    # See base.py: theme_fallback is the SDK's canonical fallback for an
+    # isolated plugin .venv, where theme_changed actually fires on theme
+    # switches instead of silently dropping every connection.
+    from .theme_fallback import Colors, Fonts, theme_manager
 
 
 class StepIndicator(QWidget):
